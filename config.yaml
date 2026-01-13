@@ -1,0 +1,27 @@
+# BLAST Configuration File
+# All parameters can be overridden via command line arguments
+
+blast:
+  program: blastn
+  evalue: 1e-5
+  word_size: 11
+  dust: "yes"
+  perc_identity: 0
+  max_target_seqs: 500
+  max_hsps: 10
+  outfmt: "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen"
+  num_threads: 4
+
+query:
+  segment_type: CDS
+  gene_group: null
+
+subject:
+  database: dmel_genome
+
+# Data paths
+paths:
+  references: data/references
+  blastdb: data/blastdb
+  queries: data/queries
+  results: results

@@ -1,0 +1,21 @@
+name: bioinformatics-program
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.8
+  - numpy
+  - pandas
+  - biopython
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - jupyter
+  - snakemake
+  - blast
+  - pyyaml
+  - pip
+  - pip:
+      - requests
+      - tqdm
