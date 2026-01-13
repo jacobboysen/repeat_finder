@@ -30,6 +30,23 @@ BLAST_COLUMNS = [
     'qlen', 'slen', 'qseq', 'sseq'
 ]
 
+# Extended columns when strand is already present
+BLAST_COLUMNS_WITH_STRAND = BLAST_COLUMNS + ['strand']
+
+
+def classify_strand(sstart, send):
+    """
+    Classify hit strand based on subject (TE) coordinates.
+
+    BLAST reports subject strand via coordinate order:
+    - Plus strand: sstart < send (query matches sense strand of TE)
+    - Minus strand: sstart > send (query matches antisense strand of TE)
+
+    Returns:
+        str: 'plus' or 'minus'
+    """
+    return 'plus' if sstart < send else 'minus'
+
 
 def load_blast_results(results_file):
     """Load BLAST results from TSV file."""
@@ -37,9 +54,18 @@ def load_blast_results(results_file):
         raise FileNotFoundError(f"Results file not found: {results_file}")
 
     if results_file.stat().st_size == 0:
-        return pd.DataFrame(columns=BLAST_COLUMNS)
+        return pd.DataFrame(columns=BLAST_COLUMNS_WITH_STRAND)
 
-    df = pd.read_csv(results_file, sep='\t', names=BLAST_COLUMNS)
+    # Try to detect if strand column exists (17 columns vs 16)
+    first_line = open(results_file).readline()
+    num_cols = len(first_line.strip().split('\t'))
+
+    if num_cols == 17:
+        df = pd.read_csv(results_file, sep='\t', names=BLAST_COLUMNS_WITH_STRAND)
+    else:
+        df = pd.read_csv(results_file, sep='\t', names=BLAST_COLUMNS)
+        # Add strand classification
+        df['strand'] = df.apply(lambda row: classify_strand(row['sstart'], row['send']), axis=1)
 
     # Ensure qstart < qend (BLAST can report reverse)
     swap_mask = df['qstart'] > df['qend']
@@ -59,7 +85,10 @@ def calculate_density_arrays(df, query_lengths):
         - evalue_weighted: sum(1/evalue) at each position
         - bitscore_weighted: sum(bitscore/length) at each position
         - combined: sum(pident/100 * 1/evalue * 1/length) at each position
-        - hits: list of HSP details
+        - combined_plus: combined score for plus strand hits only
+        - combined_minus: combined score for minus strand hits only
+        - hits: list of HSP details (including strand)
+        - strand_counts: dict with plus/minus hit counts
     """
     results = {}
 
@@ -77,8 +106,13 @@ def calculate_density_arrays(df, query_lengths):
         bitscore_weighted = np.zeros(qlen, dtype=np.float64)
         combined = np.zeros(qlen, dtype=np.float64)
 
-        # Store hit details
+        # Strand-specific combined arrays
+        combined_plus = np.zeros(qlen, dtype=np.float64)
+        combined_minus = np.zeros(qlen, dtype=np.float64)
+
+        # Store hit details and strand counts
         hits = []
+        strand_counts = {'plus': 0, 'minus': 0}
 
         for _, row in group.iterrows():
             start = int(row['qstart']) - 1  # Convert to 0-indexed
@@ -95,14 +129,26 @@ def calculate_density_arrays(df, query_lengths):
             pident = row['pident']
             bitscore = row['bitscore']
             hsp_length = end - start
+            strand = row.get('strand', classify_strand(row['sstart'], row['send']))
+
+            # Count by strand
+            strand_counts[strand] += 1
 
             # Accumulate at each position
             hit_count[start:end] += 1
             evalue_weighted[start:end] += 1.0 / evalue
             bitscore_weighted[start:end] += bitscore / hsp_length
-            combined[start:end] += (pident / 100.0) * (1.0 / evalue) * (1.0 / hsp_length)
 
-            # Store hit details
+            combined_score = (pident / 100.0) * (1.0 / evalue) * (1.0 / hsp_length)
+            combined[start:end] += combined_score
+
+            # Strand-specific accumulation
+            if strand == 'plus':
+                combined_plus[start:end] += combined_score
+            else:
+                combined_minus[start:end] += combined_score
+
+            # Store hit details with strand
             hits.append({
                 'sseqid': row['sseqid'],
                 'qstart': int(row['qstart']),
@@ -110,7 +156,8 @@ def calculate_density_arrays(df, query_lengths):
                 'pident': pident,
                 'evalue': row['evalue'],
                 'bitscore': bitscore,
-                'length': hsp_length
+                'length': hsp_length,
+                'strand': strand
             })
 
         results[qseqid] = {
@@ -119,8 +166,11 @@ def calculate_density_arrays(df, query_lengths):
             'evalue_weighted': evalue_weighted,
             'bitscore_weighted': bitscore_weighted,
             'combined': combined,
+            'combined_plus': combined_plus,
+            'combined_minus': combined_minus,
             'hits': hits,
-            'total_hits': len(hits)
+            'total_hits': len(hits),
+            'strand_counts': strand_counts
         }
 
     return results
@@ -128,7 +178,8 @@ def calculate_density_arrays(df, query_lengths):
 
 def smooth_density(density_dict, sigma=25):
     """Apply Gaussian smoothing to density arrays."""
-    metrics = ['hit_count', 'evalue_weighted', 'bitscore_weighted', 'combined']
+    metrics = ['hit_count', 'evalue_weighted', 'bitscore_weighted', 'combined',
+               'combined_plus', 'combined_minus']
 
     for qseqid, data in density_dict.items():
         for metric in metrics:
@@ -187,12 +238,25 @@ def annotate_peaks(density_dict, metric='combined', threshold_pct=0.1):
 
         peak_annotations = []
         for peak_pos in peaks:
-            # Find contributing TEs at this peak
+            # Find contributing TEs at this peak (by strand)
             contributing_tes = defaultdict(float)
+            contributing_tes_plus = defaultdict(float)
+            contributing_tes_minus = defaultdict(float)
+            strand_counts_at_peak = {'plus': 0, 'minus': 0}
+
             for hit in data['hits']:
                 if hit['qstart'] - 1 <= peak_pos < hit['qend']:
                     te_family = hit['sseqid'].split(':')[0] if ':' in hit['sseqid'] else hit['sseqid']
-                    contributing_tes[te_family] += 1.0 / max(hit['evalue'], 1e-180)
+                    contribution = 1.0 / max(hit['evalue'], 1e-180)
+                    contributing_tes[te_family] += contribution
+
+                    # Track by strand
+                    strand = hit.get('strand', 'plus')
+                    strand_counts_at_peak[strand] += 1
+                    if strand == 'plus':
+                        contributing_tes_plus[te_family] += contribution
+                    else:
+                        contributing_tes_minus[te_family] += contribution
 
             # Sort by contribution
             sorted_tes = sorted(contributing_tes.items(), key=lambda x: -x[1])
@@ -200,7 +264,10 @@ def annotate_peaks(density_dict, metric='combined', threshold_pct=0.1):
             peak_annotations.append({
                 'position': peak_pos + 1,  # 1-indexed for output
                 'value': float(data[metric][peak_pos]),
-                'contributing_tes': dict(sorted_tes[:5])  # Top 5
+                'value_plus': float(data['combined_plus'][peak_pos]) if 'combined_plus' in data else 0,
+                'value_minus': float(data['combined_minus'][peak_pos]) if 'combined_minus' in data else 0,
+                'contributing_tes': dict(sorted_tes[:5]),  # Top 5
+                'strand_counts': strand_counts_at_peak
             })
 
         data['peaks'] = peak_annotations
@@ -235,14 +302,19 @@ def save_results(density_dict, output_dir):
     # Save summary TSV
     summary_rows = []
     for qseqid, data in density_dict.items():
+        strand_counts = data.get('strand_counts', {'plus': 0, 'minus': 0})
         row = {
             'qseqid': qseqid,
             'length': int(data['length']),
             'total_hits': int(data['total_hits']),
+            'plus_strand_hits': int(strand_counts.get('plus', 0)),
+            'minus_strand_hits': int(strand_counts.get('minus', 0)),
             'num_peaks': len(data.get('peaks', [])),
             'max_hit_count': float(np.max(data['hit_count'])) if len(data['hit_count']) > 0 else 0,
             'max_evalue_weighted': float(np.max(data['evalue_weighted'])) if len(data['evalue_weighted']) > 0 else 0,
-            'max_combined': float(np.max(data['combined'])) if len(data['combined']) > 0 else 0
+            'max_combined': float(np.max(data['combined'])) if len(data['combined']) > 0 else 0,
+            'max_combined_plus': float(np.max(data['combined_plus'])) if 'combined_plus' in data and len(data['combined_plus']) > 0 else 0,
+            'max_combined_minus': float(np.max(data['combined_minus'])) if 'combined_minus' in data and len(data['combined_minus']) > 0 else 0
         }
         summary_rows.append(row)
 
@@ -253,8 +325,10 @@ def save_results(density_dict, output_dir):
     # Save peak details as JSON (convert numpy types)
     peaks_data = {}
     for qseqid, data in density_dict.items():
+        strand_counts = data.get('strand_counts', {'plus': 0, 'minus': 0})
         peaks_data[qseqid] = {
             'length': int(data['length']),
+            'strand_counts': strand_counts,
             'peaks': convert_to_json_serializable(data.get('peaks', []))
         }
 
@@ -387,15 +461,29 @@ def main():
     # Print summary
     print("\n" + "=" * 60)
     print("Summary by Sequence:")
-    print("-" * 60)
-    print(f"{'Query':<35} {'Length':>8} {'Hits':>6} {'Peaks':>6} {'Max Signal':>12}")
-    print("-" * 60)
+    print("-" * 100)
+    print(f"{'Query':<35} {'Length':>8} {'Hits':>6} {'(+)':>6} {'(-)':>6} {'Peaks':>6} {'Max Signal':>12}")
+    print("-" * 100)
 
+    total_plus = 0
+    total_minus = 0
     for qseqid in sorted(density_dict.keys()):
         data = density_dict[qseqid]
         max_signal = np.max(data['combined']) if len(data['combined']) > 0 else 0
+        strand_counts = data.get('strand_counts', {'plus': 0, 'minus': 0})
+        plus_hits = strand_counts.get('plus', 0)
+        minus_hits = strand_counts.get('minus', 0)
+        total_plus += plus_hits
+        total_minus += minus_hits
         print(f"{qseqid:<35} {data['length']:>8} {data['total_hits']:>6} "
+              f"{plus_hits:>6} {minus_hits:>6} "
               f"{len(data.get('peaks', [])):>6} {max_signal:>12.2e}")
+
+    print("-" * 100)
+    print(f"{'TOTAL':<35} {'-':>8} {total_plus + total_minus:>6} "
+          f"{total_plus:>6} {total_minus:>6}")
+    if total_minus > 0:
+        print(f"\nStrand ratio (+/-): {total_plus / total_minus:.2f}")
 
     print("\n" + "=" * 60)
     print("Density calculation complete!")

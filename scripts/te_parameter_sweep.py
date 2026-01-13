@@ -55,6 +55,29 @@ BLAST_COLUMNS = [
 ]
 
 
+def classify_strand(sstart, send):
+    """
+    Classify hit strand based on subject coordinates.
+
+    BLAST reports subject strand via coordinate order:
+    - Plus strand (sense): sstart < send
+    - Minus strand (antisense): sstart > send
+
+    Returns:
+        str: 'plus' or 'minus'
+    """
+    return 'plus' if sstart < send else 'minus'
+
+
+def add_strand_column(df):
+    """Add strand classification column to BLAST results DataFrame."""
+    if len(df) > 0:
+        df['strand'] = df.apply(lambda row: classify_strand(row['sstart'], row['send']), axis=1)
+    else:
+        df['strand'] = []
+    return df
+
+
 def generate_param_combinations():
     """Generate all parameter combinations."""
     keys = list(PARAM_GRID.keys())
@@ -127,10 +150,21 @@ def run_single_blast(args):
         # Parse results
         if results_file.exists() and results_file.stat().st_size > 0:
             df = pd.read_csv(results_file, sep='\t', names=BLAST_COLUMNS)
+
+            # Add strand classification
+            df = add_strand_column(df)
+
+            # Calculate strand breakdown
+            plus_hits = (df['strand'] == 'plus').sum() if len(df) > 0 else 0
+            minus_hits = (df['strand'] == 'minus').sum() if len(df) > 0 else 0
+
             stats = {
                 'combo_id': combo_id,
                 'success': True,
                 'total_hits': len(df),
+                'plus_strand_hits': plus_hits,
+                'minus_strand_hits': minus_hits,
+                'strand_ratio': plus_hits / minus_hits if minus_hits > 0 else float('inf'),
                 'unique_queries': df['qseqid'].nunique(),
                 'unique_subjects': df['sseqid'].nunique(),
                 'mean_evalue': df['evalue'].mean() if len(df) > 0 else None,
@@ -142,11 +176,17 @@ def run_single_blast(args):
                 'hits_lt_0.1': (df['evalue'] < 0.1).sum(),
                 'hits_lt_0.01': (df['evalue'] < 0.01).sum(),
             }
+
+            # Save updated results with strand column
+            df.to_csv(results_file, sep='\t', index=False, header=False)
         else:
             stats = {
                 'combo_id': combo_id,
                 'success': True,
                 'total_hits': 0,
+                'plus_strand_hits': 0,
+                'minus_strand_hits': 0,
+                'strand_ratio': None,
                 'unique_queries': 0,
                 'unique_subjects': 0,
             }
@@ -390,12 +430,25 @@ def main():
         print(f"  Total hits range: {successful['total_hits'].min():.0f} - {successful['total_hits'].max():.0f}")
         print(f"  Mean hits: {successful['total_hits'].mean():.1f}")
 
+        # Strand breakdown
+        if 'plus_strand_hits' in successful.columns:
+            total_plus = successful['plus_strand_hits'].sum()
+            total_minus = successful['minus_strand_hits'].sum()
+            print(f"\nStrand Breakdown (across all runs):")
+            print(f"  Plus strand (sense) hits:  {total_plus:.0f}")
+            print(f"  Minus strand (antisense) hits: {total_minus:.0f}")
+            if total_minus > 0:
+                print(f"  Overall strand ratio (+/-): {total_plus/total_minus:.2f}")
+
         # Top 5 parameter combinations by hits
         top5 = successful.nlargest(5, 'total_hits')
         print(f"\nTop 5 combinations by hit count:")
         for _, row in top5.iterrows():
+            strand_info = ""
+            if 'plus_strand_hits' in row:
+                strand_info = f", +:{row['plus_strand_hits']:.0f}/-:{row['minus_strand_hits']:.0f}"
             print(f"  combo_{row['combo_id']:04d}: {row['total_hits']:.0f} hits "
-                  f"(ws={row['word_size']}, task={row['task']})")
+                  f"(ws={row['word_size']}, task={row['task']}{strand_info})")
 
     print("\n" + "=" * 60)
     print("Sweep complete!")

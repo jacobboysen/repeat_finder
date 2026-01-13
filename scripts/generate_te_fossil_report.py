@@ -80,10 +80,12 @@ def generate_markdown_report(output_file, data):
     if data.get('top_genes'):
         lines.append("### Key Findings")
         lines.append("")
-        lines.append("| Gene | Max Signal | Total Hits | Top TE Family |")
-        lines.append("|------|------------|------------|---------------|")
+        lines.append("| Gene | Max Signal | Total Hits | (+) Strand | (-) Strand | Top TE Family |")
+        lines.append("|------|------------|------------|------------|------------|---------------|")
         for gene in data['top_genes'][:5]:
-            lines.append(f"| {gene['gene']} | {gene['max_signal']:.2e} | {gene['total_hits']} | {gene.get('top_te', 'N/A')} |")
+            plus_hits = gene.get('plus_strand_hits', '-')
+            minus_hits = gene.get('minus_strand_hits', '-')
+            lines.append(f"| {gene['gene']} | {gene['max_signal']:.2e} | {gene['total_hits']} | {plus_hits} | {minus_hits} | {gene.get('top_te', 'N/A')} |")
         lines.append("")
 
     if data.get('clusters_summary'):
@@ -131,6 +133,10 @@ def generate_markdown_report(output_file, data):
             lines.append("")
             lines.append(f"- **3'UTR Length:** {gene_data['length']} bp")
             lines.append(f"- **Total BLAST Hits:** {gene_data['total_hits']}")
+            plus_hits = gene_data.get('plus_strand_hits', 0)
+            minus_hits = gene_data.get('minus_strand_hits', 0)
+            lines.append(f"  - Plus strand (TE sense): {plus_hits}")
+            lines.append(f"  - Minus strand (TE antisense): {minus_hits}")
             lines.append(f"- **Maximum Signal:** {gene_data['max_signal']:.2e}")
             lines.append(f"- **Clusters Detected:** {gene_data.get('num_clusters', 0)}")
             lines.append("")
@@ -192,6 +198,16 @@ def generate_markdown_report(output_file, data):
     lines.append("")
     lines.append("for all BLAST HSPs overlapping position i, with Gaussian smoothing (σ=25bp).")
     lines.append("")
+    lines.append("### Strand Terminology")
+    lines.append("")
+    lines.append("BLAST hits are classified by their orientation on the subject (TE) sequence:")
+    lines.append("")
+    lines.append("- **Plus strand (+)**: Query matches the sense strand of the TE (sstart < send)")
+    lines.append("- **Minus strand (-)**: Query matches the antisense strand of the TE (sstart > send)")
+    lines.append("")
+    lines.append("For true TE fossil detection, plus strand hits from sense 3'UTR queries are most informative,")
+    lines.append("as they indicate the 3'UTR contains sequence matching the functional orientation of the TE.")
+    lines.append("")
 
     # Footer
     lines.append("---")
@@ -248,10 +264,12 @@ def generate_html_report(output_file, data, figures_dir=None):
     if data.get('top_genes'):
         html.append("<h3>Key Findings</h3>")
         html.append("<table>")
-        html.append("<tr><th>Gene</th><th>Max Signal</th><th>Total Hits</th><th>Top TE Family</th></tr>")
+        html.append("<tr><th>Gene</th><th>Max Signal</th><th>Total Hits</th><th>(+) Strand</th><th>(-) Strand</th><th>Top TE Family</th></tr>")
         for gene in data['top_genes'][:5]:
+            plus_hits = gene.get('plus_strand_hits', '-')
+            minus_hits = gene.get('minus_strand_hits', '-')
             html.append(f"<tr><td>{gene['gene']}</td><td>{gene['max_signal']:.2e}</td>")
-            html.append(f"<td>{gene['total_hits']}</td><td>{gene.get('top_te', 'N/A')}</td></tr>")
+            html.append(f"<td>{gene['total_hits']}</td><td>{plus_hits}</td><td>{minus_hits}</td><td>{gene.get('top_te', 'N/A')}</td></tr>")
         html.append("</table>")
 
     if data.get('clusters_summary'):
@@ -291,10 +309,13 @@ def generate_html_report(output_file, data, figures_dir=None):
     html.append("<h2>Results by Gene</h2>")
     if data.get('gene_results'):
         html.append("<table>")
-        html.append("<tr><th>Gene</th><th>3'UTR Length</th><th>Hits</th><th>Max Signal</th><th>Clusters</th></tr>")
+        html.append("<tr><th>Gene</th><th>3'UTR Length</th><th>Hits</th><th>(+)</th><th>(-)</th><th>Max Signal</th><th>Clusters</th></tr>")
         for gene_data in data['gene_results']:
+            plus_hits = gene_data.get('plus_strand_hits', '-')
+            minus_hits = gene_data.get('minus_strand_hits', '-')
             html.append(f"<tr><td>{gene_data['gene']}</td><td>{gene_data['length']} bp</td>")
-            html.append(f"<td>{gene_data['total_hits']}</td><td>{gene_data['max_signal']:.2e}</td>")
+            html.append(f"<td>{gene_data['total_hits']}</td><td>{plus_hits}</td><td>{minus_hits}</td>")
+            html.append(f"<td>{gene_data['max_signal']:.2e}</td>")
             html.append(f"<td>{gene_data.get('num_clusters', 0)}</td></tr>")
         html.append("</table>")
 
@@ -404,11 +425,14 @@ def main():
             gene_results = []
             for qseqid, d in density_dict.items():
                 gene = qseqid.split('_')[0]
+                strand_counts = d.get('strand_counts', {'plus': 0, 'minus': 0})
                 gene_results.append({
                     'gene': gene,
                     'qseqid': qseqid,
                     'length': d['length'],
                     'total_hits': d['total_hits'],
+                    'plus_strand_hits': strand_counts.get('plus', 0),
+                    'minus_strand_hits': strand_counts.get('minus', 0),
                     'max_signal': float(np.max(d['combined'])) if len(d['combined']) > 0 else 0
                 })
 
