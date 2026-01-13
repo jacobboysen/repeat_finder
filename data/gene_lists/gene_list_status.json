@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "timestamp": "2026-01-13T12:43:48.180429",
+  "source": "canonical",
+  "genes_found": 12,
+  "tier1_genes": 7,
+  "flyfish_used": false,
+  "bdgp_used": false,
+  "notes": "Using canonical germ plasm gene list. Fly-FISH/BDGP scraping skipped."
+}

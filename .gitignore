@@ -41,7 +41,12 @@ data/references/
 data/blastdb/
 data/queries/
 data/cache/
+data/te_clusters/
 results/
+
+# Generated outputs
+figures/
+reports/
 
 # Keep directory structure
 !data/.gitkeep

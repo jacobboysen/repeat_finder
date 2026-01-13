@@ -1,0 +1,13 @@
+gene_symbol	flybase_id	full_name	tier	description	source
+nos	FBgn0002962	nanos	1	Maternal RNA-binding protein, posterior determinant	canonical
+osk	FBgn0003015	oskar	1	Germ plasm organizer, directs nanos localization	canonical
+pgc	FBgn0016053	polar granule component	1	Polar granule structural component	canonical
+gcl	FBgn0005695	germ cell-less	1	BTB protein, transcriptional repression in germline	canonical
+vas	FBgn0283442	vasa	1	DEAD-box RNA helicase, polar granule component	canonical
+aub	FBgn0000146	aubergine	1	Piwi subfamily, piRNA pathway, germ cell mRNA localization	canonical
+CycB	FBgn0000405	Cyclin B	1	Cell cycle regulator, transcript localized to posterior pole	canonical
+tud	FBgn0003891	tudor	2	Tudor domain protein, polar granule assembly scaffold	canonical
+piwi	FBgn0004872	piwi	2	piRNA pathway, transposon silencing in germline	canonical
+AGO3	FBgn0250816	Argonaute 3	2	piRNA pathway, transposon silencing	canonical
+dhd	FBgn0011761	deadhead	2	Thioredoxin, required for female meiosis	canonical
+Hsp83	FBgn0001233	Heat shock protein 83	2	Chaperone, required for piRNA loading into PIWI proteins	canonical
