@@ -18,25 +18,28 @@ import requests
 from tqdm import tqdm
 
 
-# FlyBase URLs (using release r6.55 - update as needed)
-FLYBASE_RELEASE = "r6.55"
-FLYBASE_BASE = f"https://ftp.flybase.net/releases/FB2024_03/dmel_{FLYBASE_RELEASE}"
+# FlyBase URLs (AWS S3 - using current release)
+# FlyBase moved to AWS S3: https://s3ftp.flybase.org/
+FLYBASE_RELEASE = "r6.66"
+FLYBASE_FASTA_BASE = f"https://s3ftp.flybase.org/genomes/Drosophila_melanogaster/current/fasta"
+FLYBASE_GFF_BASE = f"https://s3ftp.flybase.org/genomes/Drosophila_melanogaster/current/gff"
+FLYBASE_PRECOMPUTED_BASE = f"https://s3ftp.flybase.org/releases/current/precomputed_files/genes"
 
 FLYBASE_URLS = {
-    "genome": f"{FLYBASE_BASE}/fasta/dmel-all-chromosome-{FLYBASE_RELEASE}.fasta.gz",
-    "gff": f"{FLYBASE_BASE}/gff/dmel-all-{FLYBASE_RELEASE}.gff.gz",
-    "cds": f"{FLYBASE_BASE}/fasta/dmel-all-CDS-{FLYBASE_RELEASE}.fasta.gz",
-    "5utr": f"{FLYBASE_BASE}/fasta/dmel-all-five_prime_UTR-{FLYBASE_RELEASE}.fasta.gz",
-    "3utr": f"{FLYBASE_BASE}/fasta/dmel-all-three_prime_UTR-{FLYBASE_RELEASE}.fasta.gz",
-    "intron": f"{FLYBASE_BASE}/fasta/dmel-all-intron-{FLYBASE_RELEASE}.fasta.gz",
-    "transposons": f"{FLYBASE_BASE}/fasta/dmel-all-transposon-{FLYBASE_RELEASE}.fasta.gz",
-    "gene_groups": f"{FLYBASE_BASE}/precomputed_files/genes/fbgn_fbtr_fbpp_fb_{FLYBASE_RELEASE}.tsv.gz",
-    "gene_group_data": f"{FLYBASE_BASE}/precomputed_files/genes/gene_group_data_fb_{FLYBASE_RELEASE}.tsv.gz",
+    "genome": f"{FLYBASE_FASTA_BASE}/dmel-all-chromosome-{FLYBASE_RELEASE}.fasta.gz",
+    "gff": f"{FLYBASE_GFF_BASE}/dmel-all-{FLYBASE_RELEASE}.gff.gz",
+    "cds": f"{FLYBASE_FASTA_BASE}/dmel-all-CDS-{FLYBASE_RELEASE}.fasta.gz",
+    "5utr": f"{FLYBASE_FASTA_BASE}/dmel-all-five_prime_UTR-{FLYBASE_RELEASE}.fasta.gz",
+    "3utr": f"{FLYBASE_FASTA_BASE}/dmel-all-three_prime_UTR-{FLYBASE_RELEASE}.fasta.gz",
+    "intron": f"{FLYBASE_FASTA_BASE}/dmel-all-intron-{FLYBASE_RELEASE}.fasta.gz",
+    "transposons": f"{FLYBASE_FASTA_BASE}/dmel-all-transposon-{FLYBASE_RELEASE}.fasta.gz",
+    "gene_groups": f"{FLYBASE_PRECOMPUTED_BASE}/fbgn_fbtr_fbpp_fb_2025_05.tsv.gz",
+    "gene_group_data": f"{FLYBASE_PRECOMPUTED_BASE}/gene_group_data_fb_2025_05.tsv.gz",
 }
 
-# Dfam URLs
+# Dfam URLs (Updated for Dfam 3.8)
 DFAM_URLS = {
-    "te_dfam": "https://www.dfam.org/releases/Dfam_3.7/families/Dfam.h5.gz",
+    "te_dfam": "https://www.dfam.org/releases/Dfam_3.8/families/FamDB/dfam38_drosophila.h5.gz",
 }
 
 
@@ -105,18 +108,17 @@ def download_dfam_sequences(output_dir):
     """
     Download and extract D. melanogaster sequences from Dfam.
 
-    Note: Dfam provides data in HDF5 format. For simplicity, we'll provide
-    instructions to download FASTA format if available, or use alternative sources.
+    Note: Dfam 3.8+ provides data in HDF5 format (FamDB), not simple FASTA.
+    For basic TE analysis, the FlyBase transposon sequences are usually sufficient.
+    If you need Dfam data, consider using the FamDB tools or RepeatMasker.
     """
-    print("Note: Dfam TE sequences require special handling.")
-    print("Recommended: Download D. melanogaster TE consensus sequences from:")
-    print("  https://www.dfam.org/releases/Dfam_3.7/families/Drosophila_melanogaster.fa.gz")
-    print()
+    print("Note: Dfam TE sequences are in HDF5 format and require special tools.")
+    print("FlyBase transposon sequences (already downloaded) are sufficient for most analyses.")
+    print("If you need Dfam data, visit: https://www.dfam.org/releases/Dfam_3.8/")
+    print("Skipping Dfam download.\n")
 
-    dfam_url = "https://www.dfam.org/releases/Dfam_3.7/families/Drosophila_melanogaster.fa.gz"
-    output_path = Path(output_dir) / "dmel_te_dfam.fasta"
-
-    return download_file(dfam_url, output_path, decompress=True)
+    # Return success since we're intentionally skipping
+    return True
 
 
 def main():
