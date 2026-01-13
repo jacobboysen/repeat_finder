@@ -1,0 +1,11 @@
+gene_symbol	flybase_id	full_name	tier	description	source
+Act5C	FBgn0000042	Actin 5C	0	Cytoskeletal actin, ubiquitously expressed	housekeeping
+RpL32	FBgn0002626	Ribosomal protein L32 (rp49)	0	Ribosomal protein, standard normalization gene	housekeeping
+Gapdh1	FBgn0001091	Glyceraldehyde 3 phosphate dehydrogenase 1	0	Glycolytic enzyme, ubiquitously expressed	housekeeping
+alphaTub84B	FBgn0003884	alpha-Tubulin at 84B	0	Cytoskeletal tubulin, constitutively expressed	housekeeping
+Ef1alpha48D	FBgn0000556	Elongation factor 1alpha 48D	0	Translation factor, highly expressed	housekeeping
+RpS17	FBgn0005533	Ribosomal protein S17	0	Ribosomal protein, constitutive expression	housekeeping
+Tbp	FBgn0010851	TATA binding protein	0	General transcription factor	housekeeping
+eIF4A	FBgn0001942	Eukaryotic initiation factor 4A	0	Translation initiation factor	housekeeping
+SdhA	FBgn0261439	Succinate dehydrogenase A	0	Mitochondrial enzyme, metabolic housekeeping	housekeeping
+Rpl4	FBgn0003279	Ribosomal protein L4	0	Ribosomal protein, constitutive expression	housekeeping

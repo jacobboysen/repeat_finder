@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "timestamp": "2026-01-13T13:27:08.974706",
+  "source": "housekeeping",
+  "genes_found": 10,
+  "notes": "Canonical Drosophila housekeeping genes for control comparison"
+}
