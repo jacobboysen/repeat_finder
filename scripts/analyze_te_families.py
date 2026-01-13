@@ -271,6 +271,116 @@ def generate_summary_report(analysis_results, output_file):
     return df
 
 
+def analyze_family_strand_preference(all_results, te_info, output_dir):
+    """Analyze per-family strand preference across all datasets.
+
+    For each TE family, calculate strand ratio in each dataset to see if
+    certain families consistently show strand preference.
+    """
+    print("\n" + "=" * 60)
+    print("Per-Family Strand Preference Analysis")
+    print("=" * 60)
+
+    # Collect all families across all datasets
+    all_families = set()
+    for dataset_name, results in all_results.items():
+        if 'families_hit' in results:
+            all_families.update(results['families_hit'].keys())
+
+    # Build comprehensive table
+    rows = []
+    for family in sorted(all_families):
+        row = {'family': family}
+
+        # Get class from any dataset that has it
+        te_class = 'Unknown'
+        for results in all_results.values():
+            if family in results.get('families_hit', {}):
+                te_class = results['families_hit'][family].get('class', 'Unknown')
+                break
+        row['class'] = te_class
+
+        # For each dataset, get strand counts
+        for dataset_name, results in all_results.items():
+            if family in results.get('families_hit', {}):
+                fam_data = results['families_hit'][family]
+                row[f'{dataset_name}_plus'] = fam_data['plus']
+                row[f'{dataset_name}_minus'] = fam_data['minus']
+                row[f'{dataset_name}_total'] = fam_data['count']
+                ratio = fam_data['plus'] / fam_data['minus'] if fam_data['minus'] > 0 else float('inf')
+                row[f'{dataset_name}_ratio'] = ratio if ratio != float('inf') else 999
+            else:
+                row[f'{dataset_name}_plus'] = 0
+                row[f'{dataset_name}_minus'] = 0
+                row[f'{dataset_name}_total'] = 0
+                row[f'{dataset_name}_ratio'] = None
+
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+
+    # Save full table
+    output_file = output_dir / 'family_strand_preference_all.tsv'
+    df.to_csv(output_file, sep='\t', index=False)
+    print(f"\nSaved: {output_file.name}")
+
+    # Find families with consistent strand bias across germ plasm
+    print("\n" + "-" * 50)
+    print("Families with strong strand bias (ratio > 2 or < 0.5):")
+    print("-" * 50)
+
+    # Focus on germ_plasm_sense if available
+    if 'germ_plasm_sense_ratio' in df.columns:
+        biased = df[
+            (df['germ_plasm_sense_total'] >= 5) &  # At least 5 hits
+            ((df['germ_plasm_sense_ratio'] > 2) | (df['germ_plasm_sense_ratio'] < 0.5))
+        ].sort_values('germ_plasm_sense_ratio', ascending=False)
+
+        if len(biased) > 0:
+            print(f"\n{'Family':<25} {'Class':<10} {'Total':<8} {'Plus':<8} {'Minus':<8} {'Ratio':<8}")
+            print("-" * 70)
+            for _, row in biased.head(20).iterrows():
+                ratio_str = f"{row['germ_plasm_sense_ratio']:.2f}" if row['germ_plasm_sense_ratio'] < 100 else "999+"
+                print(f"{row['family']:<25} {row['class']:<10} {row['germ_plasm_sense_total']:<8} "
+                      f"{row['germ_plasm_sense_plus']:<8} {row['germ_plasm_sense_minus']:<8} {ratio_str:<8}")
+
+    # Compare strand bias between control groups
+    print("\n" + "-" * 50)
+    print("Cross-dataset strand ratio comparison (top families by total hits):")
+    print("-" * 50)
+
+    # Get datasets with ratio columns
+    ratio_cols = [c for c in df.columns if c.endswith('_ratio')]
+    total_cols = [c.replace('_ratio', '_total') for c in ratio_cols]
+
+    if len(ratio_cols) >= 2:
+        # Sort by total hits across all datasets
+        df['total_all'] = df[[c for c in df.columns if c.endswith('_total')]].sum(axis=1)
+        top_families = df.nlargest(15, 'total_all')
+
+        # Build comparison table
+        header = f"{'Family':<20} {'Class':<8}"
+        for col in ratio_cols:
+            dataset = col.replace('_ratio', '').replace('_sense', '').replace('_antisense', '')[:10]
+            header += f" {dataset:<10}"
+        print(header)
+        print("-" * (30 + 11 * len(ratio_cols)))
+
+        for _, row in top_families.iterrows():
+            line = f"{row['family'][:19]:<20} {row['class'][:7]:<8}"
+            for col in ratio_cols:
+                val = row[col]
+                if val is None or pd.isna(val):
+                    line += f" {'N/A':<10}"
+                elif val >= 100:
+                    line += f" {'999+':<10}"
+                else:
+                    line += f" {val:.2f}{'':>6}"
+            print(line)
+
+    return df
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -301,6 +411,26 @@ def main():
         '--housekeeping-antisense',
         type=Path,
         help='Housekeeping antisense BLAST results'
+    )
+    parser.add_argument(
+        '--somatic-sense',
+        type=Path,
+        help='Somatic sense BLAST results'
+    )
+    parser.add_argument(
+        '--cleared-sense',
+        type=Path,
+        help='Maternally-cleared sense BLAST results'
+    )
+    parser.add_argument(
+        '--adult-sense',
+        type=Path,
+        help='Adult-specific sense BLAST results'
+    )
+    parser.add_argument(
+        '--shuffled',
+        type=Path,
+        help='Shuffled control BLAST results'
     )
     parser.add_argument(
         '--output-dir',
@@ -382,6 +512,54 @@ def main():
         summary_file = args.output_dir / 'housekeeping_antisense_families.tsv'
         generate_summary_report(results['housekeeping_antisense'], summary_file)
         print(f"  Saved: {summary_file.name}")
+
+    # Analyze somatic sense
+    if args.somatic_sense and args.somatic_sense.exists():
+        print("\nAnalyzing somatic sense...")
+        somatic_df = load_blast_results(args.somatic_sense)
+        results['somatic_sense'] = analyze_te_families(somatic_df, te_info, 'somatic_sense')
+        print(f"  {results['somatic_sense']['total_hits']} hits, {len(results['somatic_sense']['families_hit'])} families")
+
+        summary_file = args.output_dir / 'somatic_sense_families.tsv'
+        generate_summary_report(results['somatic_sense'], summary_file)
+        print(f"  Saved: {summary_file.name}")
+
+    # Analyze cleared sense
+    if args.cleared_sense and args.cleared_sense.exists():
+        print("\nAnalyzing maternally-cleared sense...")
+        cleared_df = load_blast_results(args.cleared_sense)
+        results['cleared_sense'] = analyze_te_families(cleared_df, te_info, 'cleared_sense')
+        print(f"  {results['cleared_sense']['total_hits']} hits, {len(results['cleared_sense']['families_hit'])} families")
+
+        summary_file = args.output_dir / 'cleared_sense_families.tsv'
+        generate_summary_report(results['cleared_sense'], summary_file)
+        print(f"  Saved: {summary_file.name}")
+
+    # Analyze adult sense
+    if args.adult_sense and args.adult_sense.exists():
+        print("\nAnalyzing adult-specific sense...")
+        adult_df = load_blast_results(args.adult_sense)
+        results['adult_sense'] = analyze_te_families(adult_df, te_info, 'adult_sense')
+        print(f"  {results['adult_sense']['total_hits']} hits, {len(results['adult_sense']['families_hit'])} families")
+
+        summary_file = args.output_dir / 'adult_sense_families.tsv'
+        generate_summary_report(results['adult_sense'], summary_file)
+        print(f"  Saved: {summary_file.name}")
+
+    # Analyze shuffled control
+    if args.shuffled and args.shuffled.exists():
+        print("\nAnalyzing shuffled control...")
+        shuffled_df = load_blast_results(args.shuffled)
+        results['shuffled'] = analyze_te_families(shuffled_df, te_info, 'shuffled')
+        print(f"  {results['shuffled']['total_hits']} hits, {len(results['shuffled']['families_hit'])} families")
+
+        summary_file = args.output_dir / 'shuffled_families.tsv'
+        generate_summary_report(results['shuffled'], summary_file)
+        print(f"  Saved: {summary_file.name}")
+
+    # Run per-family strand preference analysis across all datasets
+    if len(results) > 0:
+        analyze_family_strand_preference(results, te_info, args.output_dir)
 
     # Compare gene sets (germ plasm vs housekeeping)
     if 'germ_plasm_sense' in results and 'housekeeping_sense' in results:

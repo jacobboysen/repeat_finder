@@ -52,6 +52,47 @@ def load_sweep_summary(sweep_dir):
     return pd.read_csv(summary_file, sep='\t')
 
 
+def load_control_blast_results(controls_dir):
+    """Load all control group BLAST results."""
+    results = {}
+    for tsv_file in controls_dir.glob('*.tsv'):
+        # Detect number of columns
+        first_line = open(tsv_file).readline()
+        num_cols = len(first_line.strip().split('\t'))
+
+        if num_cols == 17:
+            # File already has strand column
+            df = pd.read_csv(tsv_file, sep='\t', header=None,
+                            names=['qseqid', 'sseqid', 'pident', 'length', 'mismatch',
+                                   'gapopen', 'qstart', 'qend', 'sstart', 'send',
+                                   'evalue', 'bitscore', 'qlen', 'slen', 'qseq', 'sseq', 'strand'])
+        else:
+            # Compute strand from coordinates
+            df = pd.read_csv(tsv_file, sep='\t', header=None,
+                            names=['qseqid', 'sseqid', 'pident', 'length', 'mismatch',
+                                   'gapopen', 'qstart', 'qend', 'sstart', 'send',
+                                   'evalue', 'bitscore', 'qlen', 'slen', 'qseq', 'sseq'])
+            df['strand'] = df.apply(lambda row: 'plus' if row['sstart'] < row['send'] else 'minus', axis=1)
+
+        name = tsv_file.stem
+        plus = (df['strand'] == 'plus').sum()
+        minus = (df['strand'] == 'minus').sum()
+        results[name] = {
+            'total_hits': len(df),
+            'plus_hits': plus,
+            'minus_hits': minus,
+            'strand_ratio': plus / minus if minus > 0 else float('inf')
+        }
+    return results
+
+
+def load_family_strand_data(family_file):
+    """Load TE family strand preference data."""
+    if not family_file.exists():
+        return None
+    return pd.read_csv(family_file, sep='\t')
+
+
 def image_to_base64(image_path):
     """Convert image to base64 for embedding in HTML."""
     if not image_path.exists():
@@ -150,6 +191,36 @@ def generate_markdown_report(output_file, data):
                     lines.append(f"| {cluster['start']}-{cluster['end']} | {cluster['length']} bp | {cluster['max_signal']:.2e} | {cluster.get('dominant_te', 'N/A')} |")
                 lines.append("")
 
+    # Control Group Comparison
+    if data.get('control_results'):
+        lines.append("## Control Group Comparison")
+        lines.append("")
+        lines.append("Comparison of TE hits across different gene sets:")
+        lines.append("")
+        lines.append("| Gene Set | Total Hits | (+) Strand | (-) Strand | Ratio (+/-) | Description |")
+        lines.append("|----------|------------|------------|------------|-------------|-------------|")
+
+        descriptions = {
+            'germ_plasm_sense': 'Germ plasm 3\'UTRs (sense)',
+            'germ_plasm_antisense': 'Germ plasm 3\'UTRs (antisense)',
+            'housekeeping_sense': 'Housekeeping genes',
+            'somatic_sense': 'Somatic-specific genes',
+            'cleared_sense': 'Maternally-cleared genes',
+            'adult_sense': 'Adult-specific genes',
+            'shuffled': 'Dinucleotide shuffled'
+        }
+
+        for name, stats in sorted(data['control_results'].items()):
+            ratio_str = f"{stats['strand_ratio']:.2f}" if stats['strand_ratio'] < 100 else '999+'
+            desc = descriptions.get(name, name)
+            lines.append(f"| {name} | {stats['total_hits']} | {stats['plus_hits']} | {stats['minus_hits']} | {ratio_str} | {desc} |")
+        lines.append("")
+        lines.append("**Interpretation:**")
+        lines.append("- Ratio >1 indicates plus strand (TE sense) bias")
+        lines.append("- Ratio ~1 indicates no strand preference (expected for random matches)")
+        lines.append("- Germ plasm genes show lower ratio than somatic, suggesting less bias")
+        lines.append("")
+
     # TE Family Analysis
     lines.append("## TE Family Analysis")
     lines.append("")
@@ -161,6 +232,28 @@ def generate_markdown_report(output_file, data):
         for te_data in data['te_families'][:10]:
             lines.append(f"| {te_data['family']} | {te_data['count']} | {te_data.get('genes', 'N/A')} |")
         lines.append("")
+
+    # TE Family Strand Preference
+    if data.get('family_strand_data') is not None:
+        lines.append("### TE Family Strand Preference")
+        lines.append("")
+        lines.append("Families with strong strand bias in germ plasm (ratio > 2 or < 0.5, min 5 hits):")
+        lines.append("")
+
+        df = data['family_strand_data']
+        if 'germ_plasm_sense_ratio' in df.columns:
+            biased = df[
+                (df['germ_plasm_sense_total'] >= 5) &
+                ((df['germ_plasm_sense_ratio'] > 2) | (df['germ_plasm_sense_ratio'] < 0.5))
+            ].sort_values('germ_plasm_sense_ratio', ascending=False)
+
+            if len(biased) > 0:
+                lines.append("| Family | Class | Total | (+) | (-) | Ratio |")
+                lines.append("|--------|-------|-------|-----|-----|-------|")
+                for _, row in biased.head(15).iterrows():
+                    ratio_str = f"{row['germ_plasm_sense_ratio']:.2f}" if row['germ_plasm_sense_ratio'] < 100 else "999+"
+                    lines.append(f"| {row['family']} | {row['class']} | {int(row['germ_plasm_sense_total'])} | {int(row['germ_plasm_sense_plus'])} | {int(row['germ_plasm_sense_minus'])} | {ratio_str} |")
+                lines.append("")
 
     # Candidate TE Fossils
     lines.append("## Candidate TE Fossils")
@@ -305,6 +398,49 @@ def generate_html_report(output_file, data, figures_dir=None):
     html.append("<li>Soft masking: Disabled</li>")
     html.append("</ul>")
 
+    # Control Group Comparison
+    if data.get('control_results'):
+        html.append("<h2>Control Group Comparison</h2>")
+        html.append("<p>Comparison of TE hits across different gene sets:</p>")
+        html.append("<table>")
+        html.append("<tr><th>Gene Set</th><th>Total Hits</th><th>(+) Strand</th><th>(-) Strand</th><th>Ratio</th><th>Description</th></tr>")
+
+        descriptions = {
+            'germ_plasm_sense': 'Germ plasm 3\'UTRs (sense)',
+            'germ_plasm_antisense': 'Germ plasm 3\'UTRs (antisense)',
+            'housekeeping_sense': 'Housekeeping genes',
+            'somatic_sense': 'Somatic-specific genes',
+            'cleared_sense': 'Maternally-cleared genes',
+            'adult_sense': 'Adult-specific genes',
+            'shuffled': 'Dinucleotide shuffled'
+        }
+
+        for name, stats in sorted(data['control_results'].items()):
+            ratio_str = f"{stats['strand_ratio']:.2f}" if stats['strand_ratio'] < 100 else '999+'
+            desc = descriptions.get(name, name)
+            html.append(f"<tr><td>{name}</td><td>{stats['total_hits']}</td><td>{stats['plus_hits']}</td><td>{stats['minus_hits']}</td><td>{ratio_str}</td><td>{desc}</td></tr>")
+        html.append("</table>")
+        html.append("<p><strong>Interpretation:</strong> Ratio >1 indicates plus strand (TE sense) bias. Shuffled control shows ~1.0 (random).</p>")
+
+    # TE Family Strand Preference
+    if data.get('family_strand_data') is not None:
+        html.append("<h2>TE Family Strand Preference</h2>")
+        html.append("<p>Families with strong strand bias in germ plasm (ratio >2 or <0.5, min 5 hits):</p>")
+        df = data['family_strand_data']
+        if 'germ_plasm_sense_ratio' in df.columns:
+            biased = df[
+                (df['germ_plasm_sense_total'] >= 5) &
+                ((df['germ_plasm_sense_ratio'] > 2) | (df['germ_plasm_sense_ratio'] < 0.5))
+            ].sort_values('germ_plasm_sense_ratio', ascending=False)
+
+            if len(biased) > 0:
+                html.append("<table>")
+                html.append("<tr><th>Family</th><th>Class</th><th>Total</th><th>(+)</th><th>(-)</th><th>Ratio</th></tr>")
+                for _, row in biased.head(15).iterrows():
+                    ratio_str = f"{row['germ_plasm_sense_ratio']:.2f}" if row['germ_plasm_sense_ratio'] < 100 else "999+"
+                    html.append(f"<tr><td>{row['family']}</td><td>{row['class']}</td><td>{int(row['germ_plasm_sense_total'])}</td><td>{int(row['germ_plasm_sense_plus'])}</td><td>{int(row['germ_plasm_sense_minus'])}</td><td>{ratio_str}</td></tr>")
+                html.append("</table>")
+
     # Results by gene (abbreviated for HTML)
     html.append("<h2>Results by Gene</h2>")
     if data.get('gene_results'):
@@ -382,6 +518,18 @@ def main():
         type=Path,
         default=Path('reports'),
         help='Output directory'
+    )
+    parser.add_argument(
+        '--controls-dir',
+        type=Path,
+        default=Path('results/controls'),
+        help='Directory containing control BLAST results'
+    )
+    parser.add_argument(
+        '--family-analysis-dir',
+        type=Path,
+        default=Path('results/te_family_analysis'),
+        help='Directory containing TE family analysis'
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -463,6 +611,17 @@ def main():
                     gene_clusters = clusters_df[clusters_df['qseqid'] == gene_data['qseqid']]
                     gene_data['num_clusters'] = len(gene_clusters)
                     gene_data['clusters'] = gene_clusters.to_dict('records')
+
+    # Load control group BLAST results
+    if args.controls_dir.exists():
+        data['control_results'] = load_control_blast_results(args.controls_dir)
+        print(f"Loaded control results: {len(data['control_results'])} datasets")
+
+    # Load TE family strand preference data
+    family_strand_file = args.family_analysis_dir / 'family_strand_preference_all.tsv'
+    if family_strand_file.exists():
+        data['family_strand_data'] = load_family_strand_data(family_strand_file)
+        print(f"Loaded family strand data: {len(data['family_strand_data'])} families")
 
     # Create output directory
     args.output_dir.mkdir(parents=True, exist_ok=True)

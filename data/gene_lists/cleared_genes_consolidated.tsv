@@ -1,0 +1,11 @@
+gene_symbol	flybase_id	full_name	tier	description	source
+Hsp70Aa	FBgn0013275	Heat shock protein 70Aa	0	Stress response, cleared from pole cells	cleared
+Hsp70Ab	FBgn0013276	Heat shock protein 70Ab	0	Stress response, cleared from pole cells	cleared
+stg	FBgn0003525	string (cdc25)	0	Cell cycle, degraded in early embryo	cleared
+twine	FBgn0003900	twine	0	Meiotic cdc25, maternal-specific	cleared
+smaug	FBgn0016070	smaug	0	RNA-binding, drives MZT decay	cleared
+hb	FBgn0001180	hunchback	0	Gap gene, maternal cleared by MZT	cleared
+kni	FBgn0001320	knirps	0	Gap gene, zygotic only	cleared
+Kr	FBgn0001325	Kruppel	0	Gap gene, zygotic expression	cleared
+run	FBgn0003300	runt	0	Pair-rule gene	cleared
+ftz	FBgn0001077	fushi tarazu	0	Pair-rule, maternal cleared	cleared

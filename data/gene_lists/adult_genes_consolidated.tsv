@@ -1,0 +1,11 @@
+gene_symbol	flybase_id	full_name	tier	description	source
+Yp1	FBgn0004045	Yolk protein 1	0	Female fat body, adult only	adult
+Yp2	FBgn0004047	Yolk protein 2	0	Female fat body, adult only	adult
+Yp3	FBgn0004048	Yolk protein 3	0	Female fat body, adult only	adult
+Acp26Aa	FBgn0002855	Accessory gland protein 26Aa	0	Male accessory gland, adult only	adult
+Acp36DE	FBgn0011559	Accessory gland protein 36DE	0	Male accessory gland, adult only	adult
+Acp70A	FBgn0013753	Accessory gland protein 70A (Sex peptide)	0	Sex peptide, male adult only	adult
+Lsp1alpha	FBgn0002562	Larval serum protein 1 alpha	0	Larval fat body, pupae storage	adult
+Lsp1beta	FBgn0002563	Larval serum protein 1 beta	0	Larval fat body, pupae storage	adult
+Lsp2	FBgn0002565	Larval serum protein 2	0	Larval fat body, metamorphosis	adult
+Obp99b	FBgn0039685	Odorant-binding protein 99b	0	Adult antenna, olfaction	adult

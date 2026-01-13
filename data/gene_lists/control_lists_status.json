@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-01-13T13:41:56.762736",
+  "gene_sets": {
+    "somatic": {
+      "total": 11,
+      "unique_ids": 10
+    },
+    "cleared": {
+      "total": 10,
+      "unique_ids": 10
+    },
+    "adult": {
+      "total": 10,
+      "unique_ids": 10
+    }
+  },
+  "notes": "Control gene lists for TE fossil analysis"
+}

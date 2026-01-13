@@ -1,0 +1,12 @@
+gene_symbol	flybase_id	full_name	tier	description	source
+Mhc	FBgn0086783	Myosin heavy chain	0	Muscle myosin, flight/jump muscles	somatic
+Act88F	FBgn0000047	Actin 88F	0	Flight muscle-specific actin	somatic
+Tm1	FBgn0003721	Tropomyosin 1	0	Muscle tropomyosin	somatic
+Mf	FBgn0002741	Muscle-specific protein 300	0	Muscle structural protein	somatic
+elav	FBgn0260400	embryonic lethal abnormal vision	0	Pan-neuronal RNA-binding protein	somatic
+nSyb	FBgn0013342	neuronal Synaptobrevin	0	Synaptic vesicle protein, neurons only	somatic
+Syt1	FBgn0004242	Synaptotagmin 1	0	Synaptic calcium sensor	somatic
+ChAT	FBgn0000303	Choline acetyltransferase	0	Cholinergic neuron marker	somatic
+Rh1	FBgn0002940	Rhodopsin 1	0	Major rhodopsin, R1-6 photoreceptors	somatic
+ninaE	FBgn0002940	neither inactivation nor afterpotential E	0	Rhodopsin 1 (ninaE = Rh1)	somatic
+Cpr65Av	FBgn0035689	Cuticular protein 65Av	0	Larval/pupal cuticle protein	somatic
