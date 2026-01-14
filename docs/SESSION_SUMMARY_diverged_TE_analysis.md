@@ -317,3 +317,92 @@ Compared the highest and lowest TE-content genes genome-wide.
 - Housekeeping/metabolic genes are TE-depleted
 
 **Results file:** `results/TOP_BOTTOM_100_ANALYSIS.md`
+
+---
+
+## Session Update: Data Quality Fix & TE Database Coverage
+
+### Critical Bug Fix: Gene vs Transcript Level Analysis
+
+**Problem Discovered**: The original gene-level analysis had a data aggregation bug:
+- Hits were aggregated across all transcript isoforms per gene
+- But only the last transcript's UTR length was stored
+- Result: Impossible cases like genes with 36bp UTR but 515 hits
+
+**Fix Applied**: Switched to transcript-level analysis (FBtr IDs instead of FBgn IDs)
+- Each transcript analyzed independently
+- Data is now self-consistent: no impossible hit/UTR combinations
+- Corrected files: `top_100_te_transcripts_CORRECTED.tsv`, `bottom_100_te_transcripts_CORRECTED.tsv`
+
+### TE Database Coverage Analysis (Corrected)
+
+Analyzed genome-wide 3'UTR BLAST results (2.57M hits) against the 5,734-sequence TE database.
+
+**Overall Coverage:**
+- **91.6% of TEs** (5,255/5,734) have at least one UTR hit
+- **70.0% of TE bases** covered (5.88M/8.39M bp)
+- Average coverage per TE: 1,026 bp (median: 687 bp)
+
+**Coverage Distribution:**
+| Coverage Level | TEs | % of Database |
+|----------------|-----|---------------|
+| ≥100% | 923 | 16.1% |
+| ≥75% | 2,841 | 49.6% |
+| ≥50% | 4,279 | 74.6% |
+| ≥25% | 4,892 | 85.3% |
+| Any hit | 5,255 | 91.6% |
+
+**Top TE Families by Total Coverage:**
+
+| TE Family | Class | Bases Covered | % Covered |
+|-----------|-------|---------------|-----------|
+| roo | LTR | 746,927 bp | 73.5% |
+| INE-1 | Helitron | 432,891 bp | 68.2% |
+| 1360 | DNA | 389,456 bp | 81.3% |
+| 297 | LTR | 312,784 bp | 69.8% |
+| 412 | LTR | 298,532 bp | 71.2% |
+| mdg1 | LTR | 267,894 bp | 74.6% |
+
+### TE Positional Clustering
+
+Analyzed where on TEs the UTR hits cluster (5' vs middle vs 3').
+
+**LTR Retrotransposons Show Strong 5' Bias:**
+- 45.3% of hits in 5' region (0-20% of TE length)
+- 32.7% in middle region (20-80%)
+- 22.1% in 3' region (80-100%)
+
+**Family-Specific Patterns:**
+
+| TE Family | 5' Enriched | Middle | 3' Enriched | Pattern |
+|-----------|-------------|--------|-------------|---------|
+| roo | **65.2%** | 24.1% | 10.7% | Strong 5' |
+| 17.6 | **75.8%** | 18.3% | 5.9% | Strong 5' |
+| mdg1 | **58.4%** | 28.7% | 12.9% | Moderate 5' |
+| opus | 12.3% | 8.4% | **79.3%** | Strong 3' |
+| copia | 41.2% | **43.5%** | 15.3% | Middle |
+
+**Biological Interpretation:**
+- 5' bias consistent with LTR (regulatory region) enrichment finding
+- UTRs preferentially match TE promoter/enhancer regions, not coding sequences
+- opus is unusual - may have distinct regulatory architecture
+- This pattern supports regulatory element co-option hypothesis
+
+### Validated Findings
+
+After correcting the gene/transcript bug, these findings remain robust:
+
+1. **Short UTRs = High TE density** (confirmed at transcript level)
+   - Top 100 avg: 227 bp UTR
+   - Bottom 100 avg: 849 bp UTR
+
+2. **roo dominance** (50.6% of hits in high-TE transcripts)
+
+3. **LTR retrotransposon enrichment** (72.7% in high-TE vs 31.3% in low-TE)
+
+4. **RNA-binding/developmental genes enriched** in high-TE group
+
+### Files Generated
+- `results/top_100_te_transcripts_CORRECTED.tsv`
+- `results/bottom_100_te_transcripts_CORRECTED.tsv`
+- `results/te_database_coverage.tsv` (per-TE coverage statistics)
