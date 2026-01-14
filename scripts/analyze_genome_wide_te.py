@@ -69,7 +69,7 @@ def parse_blast_results(blast_path, transcript_info):
                 print(f"  Processed {i:,} lines...")
 
             parts = line.strip().split('\t')
-            if len(parts) < 16:
+            if len(parts) < 14:  # Minimum: qseqid through slen (14 columns)
                 continue
 
             fbtr = parts[0]
