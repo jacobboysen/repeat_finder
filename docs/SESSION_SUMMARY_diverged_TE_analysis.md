@@ -406,3 +406,52 @@ After correcting the gene/transcript bug, these findings remain robust:
 - `results/top_100_te_transcripts_CORRECTED.tsv`
 - `results/bottom_100_te_transcripts_CORRECTED.tsv`
 - `results/te_database_coverage.tsv` (per-TE coverage statistics)
+
+---
+
+## Session Update: Gene-Level Analysis & Strand Bias
+
+### Gene-Level Analysis (Corrected)
+
+Re-ran top/bottom 100 analysis properly aggregating at the gene level (summing UTR lengths across transcripts).
+
+**Top 10 High-TE Genes:**
+
+| Rank | Gene | Symbol | Density | Function |
+|------|------|--------|---------|----------|
+| 1 | FBgn0040959 | Prt-15a | 325,271 | Chitin-binding peritrophin |
+| 2 | FBgn0034403 | CG18190 | 254,580 | Microtubule-associated |
+| 3 | FBgn0067905 | Dso2 | 253,347 | Antimicrobial peptide |
+| 4 | FBgn0033948 | CG12863 | 212,571 | Zinc finger |
+| 5 | FBgn0053093 | CG33093 | 210,638 | Dioxygenase |
+
+**Patterns:** Very short UTRs (23-63 bp), enriched for immune/defense genes.
+
+### Genome-Wide Strand Bias
+
+**Overall:** 60.2% sense, 39.8% antisense (1.51x sense bias)
+
+**Key Finding:** Different insertions of the same TE family show opposite strand biases:
+- roo{}25, roo{}39: 94-95% sense
+- roo{}850, roo{}1631: 72-79% antisense
+
+This indicates strand bias reflects **insertion orientation**, not intrinsic TE properties.
+
+**Extreme Cases:**
+- Most sense-biased: TART-B (telomeric) at 98.3%
+- Most antisense-biased: Cr1a (LINE) at 88.0%
+
+### HTML Visualizations
+
+Created visualizations for top/bottom 10 genes:
+- `results/te_annotations_genomewide/index.html`
+- Individual pages showing sequence coverage, strand distribution, and alignments
+
+### New Files
+- `results/top_100_te_genes_FIXED.tsv`
+- `results/bottom_100_te_genes_FIXED.tsv`
+- `results/strand_bias_by_utr.tsv`
+- `results/strand_bias_by_te.tsv`
+- `results/GENOME_WIDE_TE_ANALYSIS_CORRECTED.md`
+- `scripts/analyze_genome_wide_te.py`
+- `results/te_annotations_genomewide/` (HTML visualizations)
