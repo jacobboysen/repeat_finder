@@ -202,3 +202,86 @@ Analyzed whether UTR sequences match TE sense (+) or antisense (-) strands:
 - `results/te_annotations/te_index.html` - TE visualization index
 - `results/STRAND_ANALYSIS_SUMMARY.md` - Detailed strand statistics
 - `results/germ_plasm_strand_summary.tsv` - Per-gene strand data
+
+---
+
+## Session Update: TE Structural Region Analysis
+
+### New Finding: UTR Sequences Preferentially Hit LTR Regions
+
+Used Bergman Lab TE consensus sequences (127 families) with structural annotations to determine which parts of TEs are being matched.
+
+**Key Result: LTR Enrichment Over Coding Regions**
+
+| Dataset | Total Hits | LTR % | CDS % | LTR/CDS Ratio |
+|---------|------------|-------|-------|---------------|
+| germ_plasm | 109 | 92.7% | 20.2% | **4.6x** |
+| housekeeping | 135 | 81.5% | 16.3% | 5.0x |
+| somatic | 427 | 102.1%* | 25.3% | 4.0x |
+| cleared | 171 | 95.3% | 29.2% | 3.3x |
+| **shuffled** | 47 | 76.6% | **36.2%** | **2.1x** |
+
+*>100% because hits can span multiple regions
+
+**Biological Interpretation:**
+- Shuffled sequences hit CDS at 36% (random baseline)
+- Real UTRs hit CDS at only 16-29% (depleted)
+- Real UTRs hit LTRs at 82-102% (enriched)
+- **Conclusion**: UTRs have co-opted TE regulatory elements (LTRs), not coding sequences
+
+### Gene-Specific LTR/CDS Patterns
+
+| Gene | Hits | LTR% | CDS% | LTR/CDS | Notes |
+|------|------|------|------|---------|-------|
+| **piwi** | 30 | 100% | 6% | **16x** | piRNA pathway - TE silencer |
+| AGO3 | 7 | 86% | 0% | ∞ | piRNA pathway |
+| pgc | 3 | 100% | 0% | ∞ | Germ cell marker |
+| osk | 17 | 88% | 18% | 5.0x | Pole plasm organizer |
+| aub | 5 | 100% | 20% | 5.0x | piRNA pathway |
+| tud | 15 | 93% | 33% | 2.8x | Polar granule |
+| nos | 8 | 75% | 25% | 3.0x | Posterior patterning |
+| vas | 15 | 73% | 45% | 1.6x | RNA helicase |
+| CycB | 3 | 67% | 67% | 1.0x | Cell cycle |
+
+**Notable patterns:**
+- **piRNA pathway genes (piwi, AGO3, aub)** show strongest LTR enrichment
+- These genes silence TEs - their UTRs may have been targeted for TE insertion
+- vas and CycB show more balanced ratios, suggesting different evolutionary history
+
+### New Resources Created
+
+**TE Consensus Database:**
+- `data/references/dmel_te_consensus.fasta` - 127 Bergman Lab consensus sequences
+- `data/references/te_annotations.gff` - LTR, CDS positions for each family
+- `data/blastdb/dmel_te_consensus.*` - BLAST database
+
+**Analysis Scripts:**
+- `scripts/analyze_te_regions.py` - Map hits to TE structural regions
+
+**Results:**
+- `results/TE_REGION_ENRICHMENT_ANALYSIS.md` - Detailed analysis summary
+- `results/{group}_te_regions.tsv` - Per-group structural statistics
+
+### Genome-Wide Analysis (Complete)
+
+BLASTed all 30,324 D. melanogaster 3'UTRs → 2.57 million hits across 13,298 genes.
+
+**Key Finding: piRNA Pathway Genes Are Outliers**
+
+| Gene | Function | Genome-Wide Percentile |
+|------|----------|------------------------|
+| **AGO3** | piRNA | **97.4%** (Top 3%) |
+| **vas** | RNA helicase | **94.4%** (Top 6%) |
+| **aub** | piRNA | **87.2%** (Top 13%) |
+| **piwi** | piRNA | **83.0%** (Top 17%) |
+| tud | Polar granule | 69.5% |
+| pgc, nos, osk | Localization | 56-61% |
+| CycB | Cell cycle | **19.6%** (Below avg) |
+
+**Interpretation:**
+- piRNA pathway genes (which silence TEs) have the highest TE content
+- Not a general "germ plasm" phenomenon - CycB is below average
+- Average percentile: piRNA genes = 90.5%, other germ plasm = 52%
+- Supports hypothesis that TEs target their own silencers
+
+**Results file:** `results/GENOME_WIDE_COMPARISON.md`

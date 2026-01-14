@@ -230,11 +230,24 @@ Multiple timestamped versions exist. Latest is most current:
 - **Improvement**: 99.9% complex sequences, 60% with gaps
 - **Files**: `results/diverged_controls/`
 
-### Version 3: Strand-Aware Analysis (current)
+### Version 3: Strand-Aware Analysis
 - Added sense vs antisense orientation tracking
 - Created HTML visualizations for UTRs and TEs
 - **Key finding**: Gene-specific strand biases (piwi 80% antisense, tud 67% sense)
 - **Files**: `results/te_annotations/`, `results/STRAND_ANALYSIS_SUMMARY.md`
+
+### Version 4: TE Structural Region Analysis (current)
+- Downloaded Bergman Lab TE consensus sequences with structural annotations
+- Built separate BLAST database against consensus TEs
+- **Key finding**: UTRs preferentially hit LTR regions (92.7%) over CDS (20.2%)
+- **Key finding**: piRNA pathway genes (piwi, AGO3, aub) show strongest LTR enrichment
+- **New resources**:
+  - `data/references/dmel_te_consensus.fasta` - 127 consensus sequences
+  - `data/references/te_annotations.gff` - LTR, CDS positions per family
+  - `data/blastdb/dmel_te_consensus.*` - Consensus BLAST database
+  - `scripts/analyze_te_regions.py` - Structural region analysis
+  - `results/TE_REGION_ENRICHMENT_ANALYSIS.md` - Detailed findings
+  - `results/{group}_te_regions.tsv` - Per-group statistics
 
 ---
 
@@ -255,6 +268,17 @@ Multiple timestamped versions exist. Latest is most current:
 | somatic | 69% | 31% |
 | cleared | 55% | 45% |
 | shuffled | 40% | 60% |
+
+### TE Structural Region Enrichment
+| Dataset | LTR % | CDS % | LTR/CDS Ratio |
+|---------|-------|-------|---------------|
+| germ_plasm | 92.7% | 20.2% | 4.6x |
+| housekeeping | 81.5% | 16.3% | 5.0x |
+| somatic | 102.1% | 25.3% | 4.0x |
+| shuffled | 76.6% | 36.2% | 2.1x |
+
+*LTRs are regulatory regions; CDS are coding regions*
+*Shuffled controls show random baseline*
 
 ### Top TE Families in Germ Plasm UTRs
 1. roo (LTR) - 190 hits
