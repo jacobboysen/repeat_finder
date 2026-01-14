@@ -155,3 +155,50 @@ These observations motivate **tissue-aware analysis** as a priority next step.
 7. **Publication figures** - Signal density plots for top candidates
 8. **Expand gene lists** - Scrape Fly-FISH/BDGP for more germ plasm genes
 9. **RNA structure prediction** - Check if TE-derived regions form conserved structures
+
+---
+
+## Session Update: Strand Analysis & Visualizations
+
+### Strand Orientation Analysis
+
+Analyzed whether UTR sequences match TE sense (+) or antisense (-) strands:
+
+| Dataset | % Sense | % Antisense | Interpretation |
+|---------|---------|-------------|----------------|
+| germ_plasm | 39% | **61%** | Antisense-biased |
+| somatic | **69%** | 31% | Sense-biased |
+| cleared | 55% | 45% | Balanced |
+| shuffled | 40% | 60% | Matches germ plasm |
+
+**Gene-specific patterns:**
+- **piwi**: 80% antisense (strongest bias)
+- **tud, vas**: 67-75% sense (opposite bias)
+- **nos, osk**: 35-43% sense (antisense-leaning)
+
+### HTML Visualizations Created
+
+**UTR-centric** (`results/te_annotations/`):
+- 10 genes visualized (nos, osk, piwi, tud, vas, gcl, aub, pgc, CycB, Kr)
+- Sequences colored by strand: blue=sense, yellow=antisense, green=both
+- Nucleotide-level alignments with TE class labels
+
+**TE-centric** (`results/te_annotations/tes/`):
+- 12 top TEs visualized (mdg1, roo, antonia, Stalker2, etc.)
+- Shows where UTR sequences match on each TE
+- Multi-gene matches highlighted
+
+### TE Database Coverage
+
+| Threshold | TEs with UTR matches | % of 5,734 total |
+|-----------|---------------------|------------------|
+| ≥50bp | 653 | 11.4% |
+| ≥100bp | 138 | 2.4% |
+| ≥150bp | 55 | 1.0% |
+| ≥200bp | 18 | 0.3% |
+
+### Files Generated
+- `results/te_annotations/index.html` - UTR visualization index
+- `results/te_annotations/te_index.html` - TE visualization index
+- `results/STRAND_ANALYSIS_SUMMARY.md` - Detailed strand statistics
+- `results/germ_plasm_strand_summary.tsv` - Per-gene strand data

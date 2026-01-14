@@ -1,6 +1,6 @@
 # Repository File Map
 
-> **Last updated**: 2026-01-13
+> **Last updated**: 2026-01-13 (evening)
 > **Purpose**: Track what each file contains and how the repo has evolved
 > **Maintenance**: Update this file when adding new scripts, data, or results
 
@@ -11,6 +11,9 @@
 | What you want | Where to find it |
 |---------------|------------------|
 | Latest germ plasm TE hits | `results/diverged_controls/germ_plasm_sense.tsv` |
+| **UTR visualizations (HTML)** | `results/te_annotations/index.html` |
+| **TE visualizations (HTML)** | `results/te_annotations/te_index.html` |
+| Strand analysis summary | `results/STRAND_ANALYSIS_SUMMARY.md` |
 | Analysis summary | `docs/SESSION_SUMMARY_diverged_TE_analysis.md` |
 | BLAST parameters | `results/DIVERGED_TE_ANALYSIS_SUMMARY.md` |
 | Gene lists | `data/gene_lists/` |
@@ -168,9 +171,39 @@ Each group (germ_plasm, housekeeping, somatic, cleared, adult) contains:
 |------|----------|
 | `results/DIVERGED_TE_ANALYSIS_SUMMARY.md` | Parameter comparison, top candidates |
 | `results/DIVERGED_TE_CONTROL_COMPARISON.md` | Cross-group enrichment analysis |
+| `results/STRAND_ANALYSIS_SUMMARY.md` | Sense vs antisense orientation analysis |
+| `results/germ_plasm_strand_summary.tsv` | Per-gene strand statistics |
 | `results/te_fossil_candidates.txt` | Curated candidate list |
 | `results/te_fossils_diverged.txt` | Top 50 diverged hits with alignments |
 | `results/top_hits_*.txt` | Per-gene hit summaries |
+
+### HTML Visualizations (`results/te_annotations/`)
+
+Interactive HTML visualizations with colored sequences and nucleotide alignments.
+
+**UTR-centric (where do TEs match on each UTR?):**
+
+| File | Contents |
+|------|----------|
+| `index.html` | Index linking to all UTR visualizations |
+| `{gene}_3UTR_TE_annotation.html` | Per-gene: sequence with TE regions colored by strand |
+
+Genes covered: nos, osk, piwi, tud, vas, gcl, aub, pgc, CycB, Kr
+
+**TE-centric (where do UTRs match on each TE?):**
+
+| File | Contents |
+|------|----------|
+| `te_index.html` | Index + database coverage stats |
+| `tes/{TE_ID}_{family}_UTR_matches.html` | Per-TE: sequence with UTR match regions highlighted |
+
+Top TEs visualized: mdg1, roo, antonia, Stalker2, gypsy12, Max, F, HMS-Beagle
+
+**Visualization features:**
+- Color-coded by strand: blue=sense, yellow=antisense, green=both
+- TE class labels (LTR, LINE, DNA, Helitron)
+- Nucleotide-level alignments with match/mismatch coloring
+- Per-region breakdown with supporting evidence
 
 ---
 
@@ -196,6 +229,39 @@ Multiple timestamped versions exist. Latest is most current:
 - **Parameters**: dust=yes, word_size=7, gapopen=2, gapextend=1
 - **Improvement**: 99.9% complex sequences, 60% with gaps
 - **Files**: `results/diverged_controls/`
+
+### Version 3: Strand-Aware Analysis (current)
+- Added sense vs antisense orientation tracking
+- Created HTML visualizations for UTRs and TEs
+- **Key finding**: Gene-specific strand biases (piwi 80% antisense, tud 67% sense)
+- **Files**: `results/te_annotations/`, `results/STRAND_ANALYSIS_SUMMARY.md`
+
+---
+
+## Key Statistics
+
+### TE Database Coverage (germ plasm UTRs)
+| Threshold | TEs matched | % of 5,734 total |
+|-----------|-------------|------------------|
+| ≥50bp | 653 | 11.4% |
+| ≥100bp | 138 | 2.4% |
+| ≥150bp | 55 | 1.0% |
+| ≥200bp | 18 | 0.3% |
+
+### Strand Orientation by Dataset
+| Dataset | % Sense | % Antisense |
+|---------|---------|-------------|
+| germ_plasm | 39% | 61% |
+| somatic | 69% | 31% |
+| cleared | 55% | 45% |
+| shuffled | 40% | 60% |
+
+### Top TE Families in Germ Plasm UTRs
+1. roo (LTR) - 190 hits
+2. 1360 (DNA) - 187 hits
+3. mdg1 (LTR) - 105 hits
+4. S (DNA) - 83 hits
+5. opus (LTR) - 73 hits
 
 ---
 
