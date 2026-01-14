@@ -285,3 +285,35 @@ BLASTed all 30,324 D. melanogaster 3'UTRs → 2.57 million hits across 13,298 ge
 - Supports hypothesis that TEs target their own silencers
 
 **Results file:** `results/GENOME_WIDE_COMPARISON.md`
+
+### Top 100 vs Bottom 100 Gene Analysis
+
+Compared the highest and lowest TE-content genes genome-wide.
+
+**Key Patterns:**
+
+| Feature | Top 100 (High TE) | Bottom 100 (Low TE) |
+|---------|-------------------|---------------------|
+| LTR retrotransposons | **72.7%** | 31.3% |
+| LINE elements | 8.7% | **36.6%** |
+| Avg UTR length | **227 bp** | **849 bp** |
+| Dominant TE | **roo (50.6%)** | diverse |
+| Gene types | Developmental, RNA-binding | Housekeeping, mitochondrial |
+
+**High-TE genes include:**
+- Sxl (sex determination), trol (ECM signaling), para (sodium channel)
+- RNA-binding: smooth, bruno 3, hephaestus
+- Germ cell: mamo (zinc finger TF)
+
+**Low-TE genes include:**
+- Translation: eIF3i, Tcs6
+- Mitochondrial: Fdx2, Mppa, Tspo
+- Many small/uncharacterized proteins
+
+**Interpretation:**
+- **roo** LTR element dominates high-TE genes (>50% of hits)
+- Short UTRs correlate with high TE density
+- RNA-binding and developmental genes are TE-enriched
+- Housekeeping/metabolic genes are TE-depleted
+
+**Results file:** `results/TOP_BOTTOM_100_ANALYSIS.md`
