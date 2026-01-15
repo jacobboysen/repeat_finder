@@ -72,7 +72,9 @@ This document summarizes the TE (transposable element) analysis session, identif
 
 LTRs (regulatory regions) are enriched over CDS (coding regions).
 
-**Data location:** `results/TE_REGION_ENRICHMENT_ANALYSIS.md`, various `*_te_regions.tsv` files
+**Data location:** `results/INTERMEDIATE_TE_REGION_ENRICHMENT_ANALYSIS.md`, various `INTERMEDIATE_*_te_regions.tsv` files
+
+**⚠️ NOTE:** This analysis was done on small gene sets (germ plasm, housekeeping, somatic, cleared), NOT genome-wide. Should be re-run on genome-wide data for confirmation.
 
 ---
 
@@ -176,29 +178,61 @@ These may be **domesticated TEs**, not genes with TE insertions.
 | `results/bottom_100_te_genes_FIXED.tsv` | Gene-level bottom 100 | ✓ Good |
 | `results/top_100_te_transcripts_CORRECTED.tsv` | Transcript-level top 100 | ✓ Good |
 | `results/bottom_100_te_transcripts_CORRECTED.tsv` | Transcript-level bottom 100 | ✓ Good |
-| `results/strand_bias_by_utr.tsv` | Per-UTR strand statistics | ✓ Good |
-| `results/strand_bias_by_te.tsv` | Per-TE strand statistics | ✓ Good |
+| `results/strand_bias_by_utr.tsv` | Per-UTR strand statistics (genome-wide) | ✓ Good |
+| `results/strand_bias_by_te.tsv` | Per-TE strand statistics (genome-wide) | ✓ Good |
 | `results/genome_wide_all_3utrs.tsv` | Raw BLAST results (2.57M hits) | ✓ Good |
 | `results/full_transcript_te/*.html` | Full transcript visualizations | ✓ Good |
 | `results/te_annotations/*.html` | Germ plasm gene visualizations | ✓ Good |
+| `results/te_annotations_genomewide/*.html` | Top/bottom 10 gene visualizations | ✓ Good |
+| `results/GENOME_WIDE_TE_ANALYSIS_CORRECTED.md` | Final genome-wide summary | ✓ Good |
 
-### POTENTIALLY BAD DATA (use with caution)
+### BAD DATA (labeled with BAD_ prefix)
 
-| File | Issue |
-|------|-------|
-| `results/top_100_te_genes.tsv` (no suffix) | Gene/transcript mixing bug |
-| `results/bottom_100_te_genes.tsv` (no suffix) | Gene/transcript mixing bug |
-| Any file without `_FIXED` or `_CORRECTED` suffix | May have old bugs |
-| Files in `results/` without DUST filtering | May be simple repeat-dominated |
+These files contain **incorrect data** due to bugs or lack of proper filtering.
+
+| File/Directory | Issue |
+|----------------|-------|
+| `BAD_gene_transcript_mixing_top_100_te_genes.tsv` | Gene/transcript mixing bug |
+| `BAD_gene_transcript_mixing_bottom_100_te_genes.tsv` | Gene/transcript mixing bug |
+| `BAD_pre_DUST_parameter_sweep/` | Pre-DUST, 90% simple repeats |
+| `BAD_pre_DUST_controls/` | Pre-DUST filtering |
+| `BAD_pre_DUST_density_analysis/` | Pre-DUST filtering |
+| `BAD_pre_DUST_te_family_analysis/` | Pre-DUST filtering |
+| `BAD_pre_DUST_antisense_best.tsv` | Pre-DUST filtering |
+| `BAD_pre_DUST_shuffled_best.tsv` | Pre-DUST filtering |
+| `BAD_wrong_rankings_GENOME_WIDE_COMPARISON.md` | Wrong gene rankings (pre-bug fix) |
+| `BAD_references_buggy_data_TOP_BOTTOM_100_ANALYSIS.md` | References buggy top/bottom 100 files |
+
+### INTERMEDIATE DATA (labeled with INTERMEDIATE_ prefix)
+
+These files are from **early exploratory analysis** that was superceded by genome-wide analysis. Not necessarily wrong, but incomplete or superseded.
+
+| File/Directory | Description |
+|----------------|-------------|
+| `INTERMEDIATE_diverged_controls/` | Small gene set BLAST results (pre-genome-wide) |
+| `INTERMEDIATE_dust_sweep/` | Parameter testing data |
+| `INTERMEDIATE_DIVERGED_TE_ANALYSIS_SUMMARY.md` | Early DUST parameter analysis summary |
+| `INTERMEDIATE_DIVERGED_TE_CONTROL_COMPARISON.md` | Early control comparison |
+| `INTERMEDIATE_small_geneset_STRAND_ANALYSIS_SUMMARY.md` | Strand analysis on small gene sets (not genome-wide) |
+| `INTERMEDIATE_small_geneset_germ_plasm_strand_summary.tsv` | Small gene set strand data |
+| `INTERMEDIATE_TE_REGION_ENRICHMENT_ANALYSIS.md` | TE region analysis (references intermediate data) |
+| `INTERMEDIATE_*_te_regions.tsv` | Small gene set TE region mapping |
+| `INTERMEDIATE_*_te_regions.blast.tsv` | Small gene set BLAST results |
+| `INTERMEDIATE_germ_plasm_dust_on.tsv` | Small gene set DUST-corrected data |
+| `INTERMEDIATE_shuffled_dust_optimized.tsv` | Shuffled control data |
+| `INTERMEDIATE_Kr_3UTR_TE_annotation*` | Early Krüppel gene visualizations |
+| `INTERMEDIATE_te_fossil_candidates.txt` | Early TE fossil list |
+| `INTERMEDIATE_te_fossils_diverged.txt` | Early diverged TE list |
+| `INTERMEDIATE_top_hits_*.txt` | Early exploratory top hits |
+| `INTERMEDIATE_test_data_genome_wide_sample_500.tsv` | Test sample data |
 
 ### DOCUMENTATION
 
-| File | Description |
-|------|-------------|
-| `docs/SESSION_SUMMARY_diverged_TE_analysis.md` | Main session summary (updated) |
-| `results/GENOME_WIDE_TE_ANALYSIS_CORRECTED.md` | Genome-wide analysis summary |
-| `results/TOP_BOTTOM_100_ANALYSIS.md` | Gene function analysis |
-| `results/TE_REGION_ENRICHMENT_ANALYSIS.md` | LTR vs CDS enrichment |
+| File | Description | Status |
+|------|-------------|--------|
+| `docs/SESSION_SUMMARY_diverged_TE_analysis.md` | Main session summary | ✓ Current |
+| `docs/SESSION_REVIEW_data_quality.md` | This file - data quality audit | ✓ Current |
+| `results/GENOME_WIDE_TE_ANALYSIS_CORRECTED.md` | Final genome-wide analysis | ✓ Good |
 
 ### SCRIPTS
 

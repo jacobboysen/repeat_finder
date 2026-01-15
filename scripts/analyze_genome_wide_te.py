@@ -4,9 +4,14 @@ Genome-wide TE analysis: gene-level aggregation, HTML visualizations, and strand
 """
 
 import argparse
+import sys
 from pathlib import Path
 from collections import defaultdict
 import re
+
+# Add scripts directory to path for utils import
+sys.path.insert(0, str(Path(__file__).parent))
+from utils.paths import get_references_dir
 
 
 def parse_3utr_fasta(fasta_path):
@@ -146,9 +151,10 @@ def get_gene_symbols(fbgn_list):
     symbol_map = {}
 
     # Try to load from common annotation sources
+    refs_dir = get_references_dir()
     gene_map_paths = [
-        Path('/Users/jacobboysen/git_repos/repeat_finder/data/references/fbgn_annotation_ID.tsv'),
-        Path('/Users/jacobboysen/git_repos/repeat_finder/data/references/gene_symbols.tsv'),
+        refs_dir / 'fbgn_annotation_ID.tsv',
+        refs_dir / 'gene_symbols.tsv',
     ]
 
     for path in gene_map_paths:

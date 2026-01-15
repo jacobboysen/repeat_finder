@@ -3,11 +3,16 @@
 Analyze TE content across full transcripts (5'UTR + CDS + 3'UTR) for top genes.
 """
 
+import shutil
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from collections import defaultdict
-import tempfile
-import os
+
+# Add scripts directory to path for utils import
+sys.path.insert(0, str(Path(__file__).parent))
+from utils.paths import get_project_root, get_references_dir, get_blastdb_dir, get_results_dir
 
 # Top 10 genes by TE density
 TOP_GENES = [
@@ -693,15 +698,17 @@ a { color: #0066cc; }
 
 
 def main():
-    base_dir = Path('/Users/jacobboysen/git_repos/repeat_finder')
-    blast_path = '/Users/jacobboysen/miniconda3/envs/bioinformatics-program/bin/blastn'
-    te_db = str(base_dir / 'data/blastdb/dmel_te_flybase')
-    output_dir = base_dir / 'results/full_transcript_te'
+    base_dir = get_project_root()
+    refs_dir = get_references_dir()
+    # Find blastn in PATH or use common conda location
+    blast_path = shutil.which('blastn') or 'blastn'
+    te_db = str(get_blastdb_dir() / 'dmel_te_flybase')
+    output_dir = get_results_dir() / 'full_transcript_te'
 
     print("Loading sequence data...")
-    utr5_seqs = parse_fasta_by_parent(base_dir / 'data/references/dmel_5utr.fasta')
-    cds_seqs = parse_fasta_by_parent(base_dir / 'data/references/dmel_cds.fasta')
-    utr3_seqs = parse_fasta_by_parent(base_dir / 'data/references/dmel_3utr.fasta')
+    utr5_seqs = parse_fasta_by_parent(refs_dir / 'dmel_5utr.fasta')
+    cds_seqs = parse_fasta_by_parent(refs_dir / 'dmel_cds.fasta')
+    utr3_seqs = parse_fasta_by_parent(refs_dir / 'dmel_3utr.fasta')
 
     print(f"\nBuilding full transcripts for top 10 genes...")
     transcripts = build_full_transcripts(utr5_seqs, cds_seqs, utr3_seqs, TOP_GENES)

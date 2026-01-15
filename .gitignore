@@ -54,3 +54,4 @@ reports/
 
 # Logs
 *.log
+data/annotations/raw/gene_rpkm_report.tsv

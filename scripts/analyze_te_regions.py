@@ -10,6 +10,7 @@ This script:
 """
 
 import argparse
+import shutil
 import subprocess
 import sys
 from collections import defaultdict
@@ -89,8 +90,10 @@ def map_flybase_to_consensus(flybase_name):
 
 def run_blast(query_fasta, db_path, output_path, num_threads=4):
     """Run BLAST against TE consensus database."""
+    # Find blastn in PATH
+    blastn = shutil.which('blastn') or 'blastn'
     cmd = [
-        '/Users/jacobboysen/miniconda3/envs/bioinformatics-program/bin/blastn',
+        blastn,
         '-query', query_fasta,
         '-db', db_path,
         '-word_size', '7',
