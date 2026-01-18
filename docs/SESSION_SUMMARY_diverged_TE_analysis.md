@@ -687,3 +687,100 @@ Created comprehensive visualizations in `figures/flyfish/`:
    - blood-enriched transcripts → protected/stable
 
 5. **rover element avoided by localized mRNAs** across all categories - potentially incompatible with localization mechanisms
+
+---
+
+## Session Update: Exon TE Hit Deduplication & Integrated Analysis (2026-01-15)
+
+### Problem: Duplicate Hits from Overlapping Transcript Isoforms
+
+When analyzing exon TE hits, the same genomic region can appear in multiple transcript isoforms. This causes **double-counting** when the same TE region matches the same genomic location across different isoforms.
+
+**Example**: Gene `zld` has 2,408 raw hits but only 877 unique hits (63.6% duplication).
+
+### Deduplication Approach
+
+**Deduplication key**: `(fbgn, chrom, genomic_start, genomic_end, te_id, te_start, te_end)`
+
+Key design decisions:
+1. **Exact coordinate matching** - no tolerance/fuzzy matching
+2. **Include TE coordinates** - same genomic region hitting different TE positions = separate hits
+3. **Gene-level** - deduplicate within genes, not across genes
+
+**Rationale**: This is a "minimal" deduplication that only removes truly identical hits from isoform overlap, preserving biological signal.
+
+### Deduplication Results - ALL REGION TYPES
+
+**CRITICAL FINDING**: Duplication is much higher than initially expected, especially in UTRs.
+
+| Region | Raw Hits | Unique Hits | Removed | Duplication Rate |
+|--------|----------|-------------|---------|------------------|
+| **Exon** | 1,722,273 | 1,500,719 | 221,554 | **12.86%** |
+| **5'UTR** | 1,903,660 | 1,255,113 | 648,547 | **34.07%** |
+| **3'UTR** | 2,573,926 | 1,370,202 | 1,203,724 | **46.77%** |
+
+**Why UTRs have higher duplication:**
+- GFF uses comma-separated `Parent=FBtr001,FBtr002` for UTRs shared across transcripts
+- Many genes have multiple transcript isoforms sharing the same UTR sequence
+- Alternative polyadenylation (3'UTR) and alternative promoters (5'UTR) create shared regions
+
+**Top genes by duplication (3'UTR):**
+
+| Gene | Symbol | Raw | Unique | Dup Rate |
+|------|--------|-----|--------|----------|
+| FBgn0033159 | Dscam1 | 6,472 | 161 | 97.5% |
+| FBgn0003345 | sd | 9,219 | 871 | 90.6% |
+| FBgn0003435 | Sxl | 9,534 | 905 | 90.5% |
+| FBgn0053547 | - | 6,566 | 469 | 92.9% (5'UTR) |
+
+**Biological interpretation**:
+- Dscam1 has 38,000+ isoforms - extreme duplication expected
+- Genes with complex alternative splicing (Sxl, sd) show high duplication
+- **All previous analyses using raw hit counts are inflated and need reanalysis**
+
+### Integrated TE Analysis Across Regions
+
+Updated the integrated analysis to use deduplicated exon counts alongside 5'UTR and 3'UTR data.
+
+**Gene distribution by region:**
+
+| Region Combination | Genes |
+|-------------------|-------|
+| 3'UTR + 5'UTR + Exon | 11,609 (83%) |
+| 3'UTR + Exon only | 1,209 |
+| 3'UTR + 5'UTR only | 441 |
+| Exon only | 417 |
+| 5'UTR + Exon only | 248 |
+
+**Key finding**: 83% of genes with TE hits have them in all three regions (exons, 5'UTR, 3'UTR).
+
+### Files Created
+
+**New scripts:**
+- `scripts/deduplicate_exon_te_hits.py` - Exon hit deduplication pipeline
+
+**Updated scripts:**
+- `scripts/analyze_integrated_te_enrichment.py` - Now uses deduplicated exon data
+
+**Output files (`results/exon_analysis/deduplicated/`):**
+- `exon_te_hits_deduplicated.tsv` - Hit-level deduplicated data
+- `gene_te_summary_deduplicated.tsv` - Gene-level aggregation
+- `deduplication_stats.json` - Statistics and per-gene breakdown
+- `original_vs_deduplicated.tsv` - Comparison of raw vs unique counts
+
+### HTML Visualization Updates
+
+Created improved HTML visualizations (`scripts/generate_exon_te_html_v2.py`):
+- **Distinct domain colors**: gag (crimson), pol (magenta), transposase (gold), LTRs (blue/turquoise)
+- **Start/stop codon highlighting**: ATG (green), TAA/TAG/TGA (red)
+- **Transcript-level organization**: Separate views per transcript isoform
+- **Full gene schematic**: Shows exon structure with TE hits mapped
+
+Output in `results/exon_analysis/html_v2/`
+
+### Next Steps: UTR Deduplication
+
+The same deduplication approach should be applied to 5'UTR and 3'UTR analyses:
+- Currently, UTR hits are aggregated by gene, summing across all transcript isoforms
+- Overlapping UTR regions in different isoforms can cause similar double-counting
+- See `docs/UTR_DEDUPLICATION_PLAN.md` for implementation plan

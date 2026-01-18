@@ -1,0 +1,116 @@
+================================================================================
+DATA QUALITY / INTERPRETATION REPORT
+================================================================================
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  CRITICAL ISSUE: The data as labeled is internally inconsistent              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Number of IMPOSSIBLE cases in top 100:
+  Genes with UTR < 100bp AND hits > 0 AND hits_100bp = 0: 13
+
+These cases:
+  FBgn0265991: UTR=56bp, hits=1366, hits_100bp=0
+  FBgn0000640: UTR=36bp, hits=515, hits_100bp=0
+  FBgn0260463: UTR=60bp, hits=754, hits_100bp=0
+  FBgn0028697: UTR=48bp, hits=936, hits_100bp=0
+  FBgn0037368: UTR=36bp, hits=552, hits_100bp=0
+  FBgn0033005: UTR=37bp, hits=712, hits_100bp=0
+  FBgn0020415: UTR=50bp, hits=576, hits_100bp=0
+  FBgn0039782: UTR=33bp, hits=618, hits_100bp=0
+  FBgn0264740: UTR=56bp, hits=696, hits_100bp=0
+  FBgn0041105: UTR=68bp, hits=527, hits_100bp=0
+  FBgn0041180: UTR=50bp, hits=748, hits_100bp=0
+  FBgn0038257: UTR=64bp, hits=596, hits_100bp=0
+  FBgn0031191: UTR=46bp, hits=458, hits_100bp=0
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  POSSIBLE EXPLANATIONS                                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+EXPLANATION 1: Multi-isoform issue
+──────────────────────────────────
+- "utr_len" = shortest isoform's 3'UTR
+- "hits" = summed across ALL isoforms
+- "hits_100bp" = hits in 100bp region of a SPECIFIC isoform
+
+This would explain why a gene with utr_len=36bp has hits=515 but hits_100bp=0:
+  - The 36bp UTR is from isoform A (minimal)
+  - The 515 hits are from isoforms B, C, D which have longer UTRs
+  - The 100bp window is evaluated on yet another reference
+
+EXPLANATION 2: Hits are NOT in the UTR
+─────────────────────────────────────
+- "hits" might include the entire gene body (introns, 5'UTR, flanking regions)
+- "utr_len" is still the 3'UTR length
+- "hits_100bp" specifically means within 100bp of the stop codon
+
+EXPLANATION 3: Counting methodology
+──────────────────────────────────
+- "hits" might be k-mer matches, not discrete TE insertions
+- Each TE insertion could generate many "hits" due to overlapping seeds
+- The 100bp window has a different counting method
+
+EXPLANATION 4: Data generation artifact
+───────────────────────────────────────
+- Different annotation sources were mixed
+- Some values are placeholders or estimates
+- The pipeline had bugs for edge cases
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  WHAT WE CAN'T CONCLUDE WITHOUT MORE INFO                                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+1. We CANNOT confidently say "high-TE genes have shorter UTRs" because
+   we don't know if utr_len is comparable between high and low TE groups
+
+2. We CANNOT interpret "hits" as actual TE insertions without knowing
+   the counting methodology
+
+3. We CANNOT use "te_density" for meaningful comparisons because the
+   formula appears to use potentially incompatible numerator/denominator
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  QUESTIONS TO RESOLVE                                                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+1. How was this dataset generated?
+   - What tool (BLAST? RepeatMasker? HMMER? Custom pipeline?)
+   - What TE database (FlyBase TEs? Repbase? Custom?)
+   - What was the query sequence (3'UTR only? whole transcript? whole gene?)
+
+2. What does "utr_len" represent?
+   - Shortest isoform? Longest? Canonical?
+   - Is it from the same annotation version as the TE analysis?
+
+3. What does "hits" count?
+   - Individual TE insertions?
+   - BLAST HSPs?
+   - K-mer matches?
+   - Why can a 36bp region have 515 "hits"?
+
+4. What defines "hits_100bp"?
+   - 100bp from what reference point?
+   - Why can a gene with UTR < 100bp have hits_100bp = 0?
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  PATTERNS THAT MAY STILL BE MEANINGFUL                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Even with these caveats, some patterns appear robust:
+
+1. TE FAMILY SPECIFICITY - The FBti IDs differ dramatically between groups
+   This suggests real biological signal regardless of counting issues
+
+2. GENE IDENTITY - Master developmental regulators (Sxl, snail, etc.) are
+   enriched in high-TE group. This is checkable in FlyBase directly.
+
+3. EXTREME RANGE - The 4000x difference between high and low te_density
+   groups (even if te_density formula is questionable) suggests a real
+   difference in TE content.
+
+4. BOTTOM GROUP CONSISTENCY - All 100 low-TE genes have hits_100bp=0,
+   suggesting they may be genuinely TE-poor in proximal regulatory regions.
+

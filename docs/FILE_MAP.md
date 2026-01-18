@@ -1,8 +1,106 @@
 # Repository File Map
 
-> **Last updated**: 2026-01-14
+> **Last updated**: 2026-01-15
 > **Purpose**: Track what each file contains and how the repo has evolved
 > **Maintenance**: Update this file when adding new scripts, data, or results
+
+## Completed: Regulatory Region TE Analysis (2026-01-15)
+
+**Status**: Complete
+
+Extended the pipeline to analyze TE content in regulatory regions: promoters, enhancers, silencers, and TF binding sites.
+
+**Data Sources** (from FlyBase GFF r6.66):
+- **Promoters**: 43,062 extended TSS regions (TSS-2000 to TSS+500) from RAMPAGE + modENCODE
+- **Enhancers**: 58,069 CRMs from REDfly (12,516 STARR-seq validated)
+- **Silencers**: 331 repressed regions from STARR-seq (limited; H3K27me3 would be better)
+- **TFBS**: 236,280 TF binding sites from ChIP-seq/ChIP-chip (49 TFs, embryo timepoints)
+
+**New files**:
+| File | Purpose |
+|------|---------|
+| `scripts/extract_promoters.py` | Extract extended promoter regions around TSS |
+| `scripts/extract_enhancers.py` | Extract enhancers with nearest-gene assignment |
+| `scripts/extract_silencers.py` | Extract silencer (repressed) regions |
+| `scripts/extract_tfbs.py` | Extract TF binding sites genome-wide |
+| `scripts/analyze_regulatory_te.py` | Unified TE analysis with RepeatMasker overlap |
+| `data/queries/regulatory/promoters/` | Promoter sequences + metadata |
+| `data/queries/regulatory/enhancers/` | Enhancer sequences + metadata |
+| `data/queries/regulatory/silencers/` | Silencer sequences + metadata |
+| `data/queries/regulatory/tfbs/` | TFBS sequences + metadata |
+| `results/regulatory_analysis/` | BLAST results and analysis outputs |
+
+**Key metadata fields**:
+- `nearest_fbgn`, `nearest_symbol`, `distance_to_gene` - Gene assignment
+- `is_starr_seq` - STARR-seq validation flag (enhancers)
+- `in_repeatmasker` - Whether hit overlaps known RepeatMasker annotation
+
+See plan: `docs/plans/regulatory_te_analysis_plan.md`
+
+---
+
+## Completed: Exon TE Hit Deduplication (2026-01-15)
+
+**Status**: Complete
+
+Added deduplication to remove inflated counts from overlapping transcript isoforms.
+
+**Key Results**:
+- **1,722,273 raw hits → 1,500,719 unique hits** (12.86% duplication rate)
+- **33.4% of genes** had some duplicate hits removed
+- Top duplicated genes: zld (63.6%), osa (69.2%), Lasp (58.4%)
+
+**Deduplication key**: `(fbgn, chrom, genomic_start, genomic_end, te_id, te_start, te_end)`
+
+**New files**:
+| File | Purpose |
+|------|---------|
+| `scripts/deduplicate_exon_te_hits.py` | Exon hit deduplication pipeline |
+| `scripts/generate_exon_te_html_v2.py` | Improved HTML visualizations with domain colors |
+| `scripts/analyze_integrated_te_enrichment.py` | Cross-region (exon/5'UTR/3'UTR) enrichment |
+| `results/exon_analysis/deduplicated/exon_te_hits_deduplicated.tsv` | Deduplicated hits |
+| `results/exon_analysis/deduplicated/gene_te_summary_deduplicated.tsv` | Gene-level summary |
+| `results/exon_analysis/deduplicated/deduplication_stats.json` | Statistics |
+| `results/exon_analysis/deduplicated/original_vs_deduplicated.tsv` | Per-gene comparison |
+| `results/exon_analysis/html_v2/` | Improved HTML visualizations |
+| `results/integrated_te_analysis/gene_te_all_regions.tsv` | Integrated gene TE data |
+| `results/integrated_te_analysis/functional_enrichment_results.tsv` | Enrichment by gene set |
+
+---
+
+## Completed: Exon TE Analysis (2026-01-15)
+
+**Status**: Complete
+
+Extended the pipeline to analyze individual exons for TE similarity, complementing the existing 5'UTR and 3'UTR analyses.
+
+**Key Results**:
+- **42,701 exons extracted** (genome-wide, individual exon level)
+- **1,722,273 BLAST hits** against TE database
+- **TE Domain Distribution**: 20.6% gag, 16.0% pol (36.6% in TE coding domains)
+- **Position Effect**: Internal exons have fewer hits (166K) than terminal exons (321K-443K)
+- **Disorder Prediction**: 13,986 genes with local hydropathy-based disorder scores
+
+**New files**:
+| File | Purpose |
+|------|---------|
+| `scripts/extract_exons.py` | Extract individual exons from GFF + genome |
+| `scripts/analyze_exon_te.py` | Main exon TE analysis script |
+| `scripts/predict_disorder.py` | Disorder prediction (local + IUPred3 API) |
+| `scripts/utils/te_domain_classifier.py` | Classify hits by TE internal domain |
+| `scripts/utils/disorder_loaders.py` | Load disorder predictions |
+| `data/queries/genome_wide/exons_sense.fasta` | 42,701 extracted exon sequences |
+| `data/references/dmel_proteins.fasta` | FlyBase protein sequences |
+| `data/annotations/gene_disorder_scores.tsv` | Per-gene disorder predictions |
+| `results/exon_analysis/genome_wide_exons.tsv` | 1.7M BLAST hits |
+| `results/exon_analysis/exon_te_summary.tsv` | Per-exon TE statistics |
+| `results/exon_analysis/gene_exon_te_summary.tsv` | Per-gene aggregation |
+| `results/exon_analysis/te_domain_distribution.tsv` | Hits by TE domain |
+| `results/exon_analysis/utr_overlap_comparison.tsv` | Terminal vs internal comparison |
+
+See plan: `docs/plans/exon_te_analysis_plan.md`
+
+---
 
 ## Recent Changes (2026-01-14)
 
@@ -184,6 +282,15 @@ python scripts/visualize_functional_enrichment.py
 | `te_parameter_sweep.py` | Test BLAST parameters | Queries + DB | `results/parameter_sweep/` |
 | `calculate_te_signal_density.py` | Position-wise TE signal | BLAST TSV | Density arrays |
 | `detect_te_clusters.py` | Find TE signal hotspots | Density data | Cluster coords |
+
+### Shuffled Control Analysis Scripts
+
+| Script | Purpose | Input | Output |
+|--------|---------|-------|--------|
+| `run_full_shuffle_parallel.py` | Run genome-wide shuffled BLAST (10 reps) | 3'UTR FASTA | `results/shuffled_full/` |
+| `analyze_shuffle_convergence_fast.py` | Analyze shuffle convergence (do shuffles hit same TE?) | Shuffled BLAST TSVs | Convergence stats |
+| `plot_real_vs_shuffled_quality.py` | Compare real vs shuffled identity/length | BLAST TSVs | Quality figures |
+| `analyze_utr_position_bias.py` | Positional bias analysis (where on UTR do TEs hit?) | BLAST TSVs | Position figures |
 
 ### Conservation Analysis Scripts (`scripts/conservation_analysis/`)
 
@@ -438,7 +545,7 @@ Multiple timestamped versions exist. Latest is most current:
   - `results/TE_REGION_ENRICHMENT_ANALYSIS.md` - Detailed findings
   - `results/{group}_te_regions.tsv` - Per-group statistics
 
-### Version 5: RepeatMasker Comparison (current)
+### Version 5: RepeatMasker Comparison
 - Downloaded UCSC dm6 RepeatMasker annotations
 - Compared BLAST TE hits against RepeatMasker to classify "known" vs "novel"
 - **Key finding**: **83.2% of BLAST hits are NOT in RepeatMasker**
@@ -449,6 +556,18 @@ Multiple timestamped versions exist. Latest is most current:
   - `scripts/analyze_repeatmasker_overlap.py` - Comparison script
   - `results/repeatmasker_analysis/` - Analysis outputs
   - `results/repeatmasker_analysis/REPEATMASKER_COMPARISON_SUMMARY.md` - Full writeup
+
+### Version 6: Full Shuffled Control Analysis (current)
+- Full genome-wide 10x dinucleotide shuffle with fair raw-to-raw comparison
+- **Key finding**: Alignment LENGTH distinguishes real from shuffled (real mean 61bp vs shuffled 49bp)
+- **Key finding**: 5,743 hits at ≥85%/≥100bp have ZERO shuffled equivalents
+- **Key finding**: Positional bias — real hits enriched 2.27x at 3' end, 1.22x at 5' end, depleted in middle
+- **New resources**:
+  - `results/shuffled_full/` - Full shuffled BLAST results (10 replicates)
+  - `results/shuffled_controls/SHUFFLE_ANALYSIS_RESULTS.md` - Full writeup
+  - `scripts/run_full_shuffle_parallel.py` - Parallel shuffle script
+  - `scripts/analyze_utr_position_bias.py` - Positional bias analysis
+  - `figures/shuffle_convergence/` - Quality, convergence, and position figures
 
 ---
 
@@ -480,6 +599,19 @@ Multiple timestamped versions exist. Latest is most current:
 
 *LTRs are regulatory regions; CDS are coding regions*
 *Shuffled controls show random baseline*
+
+### Shuffled Control Summary (Genome-Wide 3'UTRs)
+| Metric | Real | Shuffled (per rep) | Interpretation |
+|--------|------|-------------------|----------------|
+| Total hits | 2.57M | 2.16M | **Real has MORE hits** |
+| Mean identity | 74.5% | 75.4% | Similar |
+| Mean length | **61.2 bp** | 49.8 bp | **Real is longer** |
+| HQ hits (≥80%, ≥50bp) | 20,625 | 365 | **56x enrichment** |
+| VHQ hits (≥85%, ≥100bp) | 5,743 | 0 | **∞ enrichment** |
+| Mean UTR position | **0.558** | 0.508 | **Real biased toward 3' end** |
+
+*Key: LENGTH, not identity, distinguishes real from shuffled*
+*Positional bias: 2.27x enrichment at 3' end of UTRs*
 
 ### Top TE Families in Germ Plasm UTRs
 1. roo (LTR) - 190 hits

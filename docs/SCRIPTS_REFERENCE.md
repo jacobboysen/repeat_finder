@@ -2,7 +2,7 @@
 
 This document provides a complete audit of all Python scripts in the `repeat_finder` project, organized by their role in the analysis pipeline.
 
-> **Last updated**: 2026-01-14
+> **Last updated**: 2026-01-15
 > **Note**: Scripts renamed for clarity on 2026-01-14. Old names in parentheses.
 
 ## Quick Reference
@@ -431,6 +431,103 @@ python scripts/analyze_te_families.py \
     --housekeeping results/housekeeping.tsv \
     --output-dir results/te_families
 ```
+
+---
+
+### EXON ANALYSIS & DEDUPLICATION SCRIPTS
+
+#### `extract_exons.py`
+Extracts individual exons from GFF + genome FASTA.
+
+```bash
+python scripts/extract_exons.py
+```
+
+**Outputs:**
+- `data/queries/genome_wide/exons_sense.fasta` - 42,701 exon sequences
+- `data/queries/genome_wide/exon_metadata.tsv` - Exon coordinates and annotations
+
+---
+
+#### `analyze_exon_te.py`
+Main exon TE analysis - BLAST and aggregate results.
+
+```bash
+python scripts/analyze_exon_te.py
+```
+
+**Outputs:**
+- `results/exon_analysis/genome_wide_exons.tsv` - BLAST results
+- `results/exon_analysis/gene_exon_te_summary.tsv` - Per-gene aggregation
+
+---
+
+#### `deduplicate_exon_te_hits.py` ⭐ **DEDUPLICATION**
+Removes duplicate hits caused by overlapping transcript isoforms.
+
+```bash
+python scripts/deduplicate_exon_te_hits.py \
+    --blast-file results/exon_analysis/genome_wide_exons.tsv \
+    --exon-metadata data/queries/genome_wide/exon_metadata.tsv \
+    --output-dir results/exon_analysis/deduplicated
+```
+
+**Deduplication key:** `(fbgn, chrom, genomic_start, genomic_end, te_id, te_start, te_end)`
+
+**Key features:**
+- Converts query coordinates to genomic coordinates
+- Exact match deduplication (no tolerance)
+- Includes TE coordinates in key (same genome pos + different TE region = 2 hits)
+- Reports per-gene duplication statistics
+
+**Outputs:**
+- `exon_te_hits_deduplicated.tsv` - Unique hits with annotations
+- `gene_te_summary_deduplicated.tsv` - Gene-level summary
+- `deduplication_stats.json` - Overall and per-gene statistics
+- `original_vs_deduplicated.tsv` - Comparison table
+
+**Typical results:** 12-13% duplication rate genome-wide, up to 70% for genes with many isoforms.
+
+---
+
+#### `analyze_integrated_te_enrichment.py`
+Integrates TE data across exons, 5'UTR, and 3'UTR for enrichment analysis.
+
+```bash
+python scripts/analyze_integrated_te_enrichment.py \
+    --output-dir results/integrated_te_analysis
+```
+
+**Inputs:**
+- `results/exon_analysis/deduplicated/gene_te_summary_deduplicated.tsv` (preferred)
+- `results/genome_wide_all_3utrs.tsv`
+- `results/genome_wide_all_5utrs.tsv`
+
+**Features:**
+- Uses deduplicated exon counts by default (falls back to raw if not available)
+- Functional enrichment analysis against gene sets
+- Identifies region-specific patterns (UTR-only, exon-only, balanced)
+
+**Outputs:**
+- `gene_te_all_regions.tsv` - Per-gene hits across all regions
+- `functional_enrichment_results.tsv` - Enrichment statistics
+- `analysis_summary.json` - Summary statistics
+
+---
+
+#### `generate_exon_te_html_v2.py`
+Improved HTML visualizations with distinct domain colors.
+
+```bash
+python scripts/generate_exon_te_html_v2.py \
+    --output-dir results/exon_analysis/html_v2
+```
+
+**Features:**
+- Domain-specific colors: gag (crimson), pol (magenta), transposase (gold), LTRs (blue/turquoise)
+- Start/stop codon highlighting: ATG (green), TAA/TAG/TGA (red)
+- Transcript-level organization
+- Full gene schematic with exon boundaries
 
 ---
 
