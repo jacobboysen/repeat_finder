@@ -1,8 +1,93 @@
 # Repository File Map
 
-> **Last updated**: 2026-01-15
+> **Last updated**: 2026-01-22
 > **Purpose**: Track what each file contains and how the repo has evolved
 > **Maintenance**: Update this file when adding new scripts, data, or results
+
+## Completed: DUST Filtering Re-Analysis (2026-01-22)
+
+**Status**: Complete
+
+**Critical finding**: DUST filtering removes genuine TE-derived sequences, not just simple repeats. Comprehensive parameter sweep with paired shuffled controls demonstrates that DUST=no captures 52% more high-quality hits (e < 1e-10) with higher real/shuffled enrichment ratios.
+
+**Key Results**:
+- DUST=no captures 15,299 hits at e < 1e-10 vs 10,074 with DUST=yes (+52%)
+- Real/Shuffled ratio at e < 0.001: 74x (DUST=no) vs 33x (DUST=yes)
+- DUST-filtered sequences are GC-rich CAG repeats (54.7% AT) intrinsic to `roo` family TEs
+- Shuffled controls get 0 hits at e < 1e-10 regardless of DUST setting
+
+**Revised recommendation**: Use `dust=no` with stringent e-value filtering (e < 0.001)
+
+**New files**:
+| File | Purpose |
+|------|---------|
+| `docs/DUST_FILTERING_ANALYSIS.md` | Detailed analysis writeup |
+| `scripts/full_param_sweep.py` | Parameter sweep with paired shuffled controls |
+| `scripts/analyze_param_sweep.py` | Comprehensive sweep analysis |
+| `scripts/analyze_param_position_distribution.py` | Position analysis by UTR length |
+| `results/param_sweep_full/` | 64 BLAST result files (3k UTR sample) |
+| `results/param_sweep_full/sweep_summary.tsv` | Summary statistics |
+| `results/param_sweep_full/sample_info.json` | Sample metadata |
+| `figures/param_sweep_analysis/evalue_analysis.png` | E-value distribution |
+| `figures/param_sweep_analysis/position_by_utr_length_dust_comparison.png` | Positional analysis |
+| `figures/param_sweep_analysis/param_effects_summary.png` | Parameter effects |
+| `figures/param_sweep_analysis/wordsize_comparison.png` | Word size comparison |
+| `figures/param_sweep_analysis/te_family_analysis.png` | TE family analysis |
+| `figures/param_sweep_analysis/analysis_summary.tsv` | Numeric summary |
+
+**Usage**:
+```bash
+# Run parameter sweep (10% sample, ~2 hours)
+python scripts/full_param_sweep.py --sample-frac 0.1 --seed 42
+
+# Analyze results
+python scripts/analyze_param_sweep.py --sweep-dir results/param_sweep_full
+```
+
+---
+
+## Completed: TE Motif Analysis (2026-01-18)
+
+**Status**: Complete
+
+Added comprehensive motif analysis pipeline to identify enriched k-mers in TE hits, analyze their positional distribution, test gene set associations, and examine isoform-specific patterns.
+
+**Key Features**:
+- K-mer enrichment comparing real vs 10 shuffled replicates
+- Positional distribution (where motifs occur within 3'UTRs)
+- Gene set enrichment (which functional categories have specific motifs)
+- Isoform-specific motif analysis (differential 3'UTR regulation)
+
+**New files**:
+| File | Purpose |
+|------|---------|
+| `scripts/analyze_te_motifs.py` | Core k-mer extraction and enrichment analysis |
+| `scripts/analyze_motif_positions.py` | Positional distribution within UTRs |
+| `scripts/analyze_motif_gene_sets.py` | Fisher's exact tests for motif-gene set associations |
+| `scripts/analyze_motif_isoforms.py` | Isoform-specific motif analysis |
+| `scripts/visualize_motif_analysis.py` | Visualization suite (volcano, heatmaps, etc.) |
+| `results/motif_analysis/motif_enrichment_6mer.tsv` | K-mer enrichment statistics |
+| `results/motif_analysis/motif_position_density.tsv` | Positional distribution data |
+| `results/motif_analysis/motif_gene_set_enrichment.tsv` | Motif-gene set associations |
+| `results/motif_analysis/isoform_specific_te_motifs.tsv` | Isoform-specific motifs |
+| `figures/motif_analysis/` | All visualizations |
+
+**Usage**:
+```bash
+# Run in order (each depends on previous outputs)
+python scripts/analyze_te_motifs.py
+python scripts/analyze_motif_positions.py
+python scripts/analyze_motif_gene_sets.py
+python scripts/analyze_motif_isoforms.py
+python scripts/visualize_motif_analysis.py
+```
+
+**Statistical methods**:
+- Z-score enrichment with Benjamini-Hochberg FDR correction
+- Fisher's exact tests for gene set associations
+- Decile binning for positional analysis
+
+---
 
 ## Completed: Regulatory Region TE Analysis (2026-01-15)
 
@@ -291,6 +376,57 @@ python scripts/visualize_functional_enrichment.py
 | `analyze_shuffle_convergence_fast.py` | Analyze shuffle convergence (do shuffles hit same TE?) | Shuffled BLAST TSVs | Convergence stats |
 | `plot_real_vs_shuffled_quality.py` | Compare real vs shuffled identity/length | BLAST TSVs | Quality figures |
 | `analyze_utr_position_bias.py` | Positional bias analysis (where on UTR do TEs hit?) | BLAST TSVs | Position figures |
+
+### Motif Analysis Scripts
+
+| Script | Purpose | Input | Output |
+|--------|---------|-------|--------|
+| `analyze_te_motifs.py` | Core k-mer extraction and enrichment | Real + shuffled BLAST TSVs | `results/motif_analysis/motif_enrichment_6mer.tsv` |
+| `analyze_motif_positions.py` | Positional distribution of motifs | BLAST TSVs + motif results | `results/motif_analysis/motif_position_density.tsv` |
+| `analyze_motif_gene_sets.py` | Motif enrichment in gene sets | BLAST TSVs + gene sets | `results/motif_analysis/motif_gene_set_enrichment.tsv` |
+| `analyze_motif_isoforms.py` | Isoform-specific motif patterns | BLAST TSVs + UTR FASTA | `results/motif_analysis/isoform_specific_te_motifs.tsv` |
+| `visualize_motif_analysis.py` | Generate all visualizations | Motif analysis results | `figures/motif_analysis/` |
+| `analyze_motif_te_overlap_v2.py` | Motif position vs TE hit overlap | UTR FASTA + BLAST | `motif_te_overlap_v2.tsv` |
+| `analyze_motif_conservation_v2.py` | Conservation by motif presence | BLAST + conservation tab | `motif_conservation_by_te_hit.tsv` |
+| `analyze_motif_synteny.py` | Synteny by motif presence | BLAST + synteny TSV | `motif_synteny_by_te_hit.tsv` |
+| `analyze_motif_context.py` | Full context comparison | UTR FASTA + BLAST + shuffled | `motif_context_comparison.tsv` |
+
+**Usage:**
+```bash
+python scripts/analyze_te_motifs.py           # Core enrichment
+python scripts/analyze_motif_positions.py     # Positional analysis
+python scripts/analyze_motif_gene_sets.py     # Gene set associations
+python scripts/analyze_motif_isoforms.py      # Isoform specificity
+python scripts/visualize_motif_analysis.py    # All visualizations
+python scripts/analyze_motif_te_overlap_v2.py # TE overlap analysis
+python scripts/analyze_motif_conservation_v2.py # Conservation by motif
+python scripts/analyze_motif_synteny.py       # Synteny by motif
+```
+
+### RNA Structure Analysis Scripts
+
+| Script | Purpose | Input | Output |
+|--------|---------|-------|--------|
+| `analyze_rna_structure.py` | Global folding (RNAfold) on extracted segments | UTR FASTA + BLAST | `results/structure_analysis/` |
+| `analyze_local_rna_structure.py` | Local folding (RNAplfold) on full UTRs | UTR FASTA + BLAST | `results/structure_analysis/local_fold/` |
+
+**Usage:**
+```bash
+# Global folding (RNAfold)
+python scripts/analyze_rna_structure.py --max-seqs 2000 --max-length 250
+
+# Local folding (RNAplfold) - literature-recommended parameters
+python scripts/analyze_local_rna_structure.py --max-seqs 500 --max-length 2000
+```
+
+**Output files:**
+- `results/structure_analysis/rna_structure_analysis.tsv` - Global fold summary statistics
+- `results/structure_analysis/motif_structure_context.tsv` - Motif structural context
+- `results/structure_analysis/RNA_STRUCTURE_ANALYSIS_SUMMARY.md` - Full summary
+- `results/structure_analysis/local_fold/LOCAL_FOLD_SUMMARY.md` - Local fold summary
+- `results/structure_analysis/local_fold/local_fold_summary.tsv` - Local fold statistics
+
+**Key Finding**: Both methods agree - TE positions are less structured than non-TE positions.
 
 ### Conservation Analysis Scripts (`scripts/conservation_analysis/`)
 

@@ -784,3 +784,423 @@ The same deduplication approach should be applied to 5'UTR and 3'UTR analyses:
 - Currently, UTR hits are aggregated by gene, summing across all transcript isoforms
 - Overlapping UTR regions in different isoforms can cause similar double-counting
 - See `docs/UTR_DEDUPLICATION_PLAN.md` for implementation plan
+
+---
+
+## Session Update: TE Motif Analysis (2026-01-18)
+
+### Overview
+
+Comprehensive k-mer analysis of TE-aligned sequences comparing 2.57M real hits against 10 shuffled replicates (~21.6M total shuffled hits) to identify enriched/depleted sequence motifs.
+
+### Key Findings
+
+**1. CAG/Polyglutamine Repeats Massively Enriched**
+
+| Motif | Real Count | Shuffled Mean | Enrichment | Z-score |
+|-------|------------|---------------|------------|---------|
+| CAGCAG | 553,210 | 5,689 | **97.2x** | 1,009 |
+| AGCAGC | 578,277 | 6,709 | **86.2x** | 1,388 |
+| GCAGCA | 595,558 | 8,215 | **72.5x** | 1,007 |
+| CGGCGG | 22,319 | 461 | **48.3x** | 189 |
+
+- **984 significantly enriched motifs** (>2x, q<0.05)
+- Dominated by CAG repeats (encodes polyglutamine) and GC-rich sequences
+- Suggests TEs preferentially insert/retain in polyQ-encoding regions
+
+**2. Poly(A) Signals Enriched and Correctly Positioned**
+
+| Motif | Description | Enrichment | 3' End Bias |
+|-------|-------------|------------|-------------|
+| AATAAA | Canonical poly(A) | **1.54x** | 56% in last 30% |
+| AGTAAA | Alt poly(A) | **1.31x** | 3' biased |
+| TATAAA | TATA-like | **1.36x** | 47% in last 30% |
+
+- The canonical polyadenylation signal AATAAA is significantly enriched in TE hits
+- Strong positional bias toward 3' end of UTRs (where poly-A signals belong)
+- Suggests TEs may have contributed functional polyadenylation signals
+
+**3. Splice Site Avoidance**
+
+| Motif | Real | Shuffled | Enrichment |
+|-------|------|----------|------------|
+| GGTAAG | 1,859 | 5,333 | **0.35x** |
+
+- The most depleted motif contains the 5' splice donor consensus (GT...AG)
+- Selection against cryptic splice sites in TE-derived UTR sequences
+
+**4. Strong Positional Organization**
+
+- **5' end (near stop codon)**: GC-rich motifs (GCGGCG, CGGCGG) - 97% at 5' end
+- **3' end (near poly-A)**: Poly(A) signals (AATAAA, ATTAAA) - 56% at 3' end
+- Mirrors expected functional organization of 3'UTRs
+
+**5. CNS Genes Strongly Associated**
+
+| Gene Set | Motifs Significant | Mean OR | Direction |
+|----------|-------------------|---------|-----------|
+| expr_cns_enriched | 58/60 | 3.61 | Enriched |
+| expr_cns_high | 58/60 | 2.73 | Enriched |
+| expr_testis_specific | 52/60 | 0.45 | **Depleted** |
+| expr_testis_enriched | 51/60 | 0.49 | **Depleted** |
+
+- Neural/CNS genes strongly enriched for TE motifs
+- Testis-specific genes depleted - different evolutionary constraints?
+
+**6. Widespread Isoform-Specific Poly(A) Usage**
+
+| Motif | Genes with Isoform-Specific | Unique to One Isoform |
+|-------|---------------------------|----------------------|
+| AATAAA | 1,533 | 825 |
+| ATTAAA | 1,275 | 749 |
+| TATAAA | 1,251 | 706 |
+
+- 1,533 genes have AATAAA (poly-A signal) present in some isoforms but absent from others
+- Indicates extensive alternative polyadenylation regulation via TE-derived sequences
+
+### Statistical Methods
+
+- **K-mer extraction**: 6-mers from qseq column (query-aligned sequence), gaps removed
+- **Enrichment**: Z-score from shuffled distribution (10 replicates)
+- **Significance**: Benjamini-Hochberg FDR correction
+- **Gene set tests**: Fisher's exact test with FDR correction
+
+### Files Created
+
+**Scripts:**
+- `scripts/analyze_te_motifs.py` - Core k-mer extraction and enrichment
+- `scripts/analyze_motif_positions.py` - Positional distribution analysis
+- `scripts/analyze_motif_gene_sets.py` - Gene set enrichment testing
+- `scripts/analyze_motif_isoforms.py` - Isoform-specific motif analysis
+- `scripts/visualize_motif_analysis.py` - Visualization suite
+
+**Results (`results/motif_analysis/`):**
+- `motif_enrichment_6mer.tsv` - All 4,096 motifs with enrichment statistics
+- `motif_position_density.tsv` - Position distribution by decile
+- `motif_gene_set_enrichment.tsv` - 3,780 motif × gene-set tests
+- `isoform_specific_te_motifs.tsv` - 17,266 isoform-specific motif instances
+- `MOTIF_ANALYSIS_RESULTS.md` - Comprehensive results writeup
+
+**Figures (`figures/motif_analysis/`):**
+- `motif_volcano.png` - Enrichment vs significance
+- `top_motifs_barplot.png` - Top 20 enriched/depleted
+- `motif_position_heatmap.png` - Positional distribution
+- `motif_geneset_heatmap.png` - Gene set associations
+- `isoform_concordance_hist.png` - Isoform specificity
+- `motif_analysis_dashboard.png` - Summary dashboard
+
+### Biological Conclusions
+
+1. **CAG/polyQ repeats dominate**: TEs may contribute to polyglutamine tract evolution in Drosophila
+
+2. **Functional poly(A) signals from TEs**: The enrichment and correct positioning of AATAAA suggests TE-derived polyadenylation signals are functional
+
+3. **Tissue-specific patterns**: CNS genes enriched, testis genes depleted - may reflect differential TE silencing by tissue
+
+4. **Alternative polyadenylation**: 1,533 genes show isoform-specific poly(A) signal usage via TE-derived sequences
+
+5. **Splice site avoidance**: Strong selection against cryptic splice sites in TE-derived UTR sequences
+
+---
+
+## Session Update: Motif Conservation & Synteny Analysis (2026-01-18)
+
+### Question Addressed
+
+Are regulatory motifs in TE-hit regions more conserved/syntenic than TE hits without those motifs?
+
+### Motif TE Overlap Analysis
+
+First, we determined what fraction of each motif in UTRs falls within TE-hit regions:
+
+| Context | Coverage |
+|---------|----------|
+| TE coverage of UTRs | 43.9% |
+| Shuffled TE coverage | 38.3% |
+
+**Key motifs - fraction falling in TE regions:**
+
+| Motif | Total in UTRs | In TE hits | % in TE | Expected |
+|-------|--------------|------------|---------|----------|
+| AATAAA | 38,368 | 29,346 | **76.5%** | 43.9% |
+| CAGCAG | 13,795 | 6,176 | 44.8% | 43.9% |
+| GGTAAG | 868 | 269 | **31.0%** | 43.9% |
+
+### Conservation Analysis (phyloP)
+
+**ALL tested motifs show HIGHER conservation in TE hits that contain them:**
+
+| Motif | Conservation Diff | % Conserved (with/without) |
+|-------|-------------------|---------------------------|
+| TATTTA (ARE) | **+0.334** | 70.1% vs 59.2% |
+| ACACAC (CA-rich) | **+0.255** | 78.5% vs 60.4% |
+| TGTATA (Pumilio) | **+0.228** | 69.9% vs 60.2% |
+| CAGCAG (CAG repeat) | **+0.079** | 73.0% vs 59.7% |
+| AATAAA (poly-A) | **+0.038** | 60.8% vs 60.8% |
+
+### Synteny Analysis
+
+Mixed pattern with overall high synteny (98.4%):
+
+| More Syntenic | Less Syntenic |
+|---------------|---------------|
+| CAGCAG (+1.2%) | CACACA (-3.5%) |
+| AGCAGC (+1.3%) | ATTAAA (-1.2%) |
+| TGTATA (+0.4%) | AATAAA (-0.8%) |
+
+### Key Finding
+
+**CAG repeats (CAGCAG/AGCAGC)** show both:
+- Positive conservation (+0.08 phyloP)
+- Positive synteny (+1.2-1.3%)
+- Very high synteny rate (99.5%)
+
+This suggests CAG repeats in TE hits are **ancient and functionally constrained**.
+
+### Scripts Created
+
+- `scripts/analyze_motif_te_overlap.py` - Motif position vs TE hit overlap
+- `scripts/analyze_motif_te_overlap_v2.py` - Improved version with shuffled comparison
+- `scripts/analyze_motif_conservation_v2.py` - Conservation comparison by motif presence
+- `scripts/analyze_motif_synteny.py` - Synteny comparison by motif presence
+- `scripts/analyze_motif_context.py` - Full context comparison (UTR vs TE vs shuffled)
+
+### Files Created
+
+- `results/motif_analysis/motif_te_overlap_v2.tsv` - Overlap statistics
+- `results/motif_analysis/motif_conservation_by_te_hit.tsv` - Conservation comparison
+- `results/motif_analysis/motif_synteny_by_te_hit.tsv` - Synteny comparison
+- `results/motif_analysis/MOTIF_CONSERVATION_SYNTENY_SUMMARY.md` - Summary document
+
+### Conclusions
+
+1. **TE hits with regulatory motifs are under stronger purifying selection** - supports functional role of TE-derived regulatory elements
+
+2. **Effect strongest for AU-rich and CA-rich elements** - known mRNA stability/translation regulators
+
+3. **Poly(A) signals show weak conservation effect** - may reflect high background frequency diluting the signal
+
+4. **The "Quality Paradox" applies to motifs**: functional TE-derived elements are selected based on regulatory function, not TE sequence identity
+
+---
+
+## Session Update: RNA Secondary Structure Analysis (2026-01-18)
+
+### Question Addressed
+
+Do TE-hit regions have different RNA secondary structure properties than non-TE regions? Are these structures functionally relevant or just compositional?
+
+### Methods
+
+- **Tool**: ViennaRNA RNAfold 2.7.0 with partition function
+- **Sequences**: TE regions (±20bp buffer) vs non-TE regions (gaps between hits)
+- **Length filter**: ≤250bp for efficient folding
+- **Comparison**: Real vs shuffled (dinucleotide-preserved)
+
+### Key Results
+
+**1. TE regions are LESS structured than non-TE regions:**
+
+| Region | MFE/nt | % Base-paired |
+|--------|--------|---------------|
+| TE | -0.152 | 25.2% |
+| Non-TE | -0.190 | 25.3% |
+
+**2. Real vs shuffled shows NO difference:**
+- Real TE: -0.152 kcal/mol/nt
+- Shuffled TE: -0.153 kcal/mol/nt
+- Structure is composition-driven, not evolved
+
+**3. Motif structural context varies:**
+
+| Motif | % Paired (TE) | % Paired (non-TE) |
+|-------|---------------|-------------------|
+| TGTATA (Pumilio) | **74.2%** | 49.0% |
+| AATAAA (poly-A) | 31.6% | 28.6% |
+
+### Key Finding: Pumilio Sites in TE Regions are Highly Structured
+
+TGTATA (Pumilio binding motif) shows 74% base-pairing in TE regions vs 49% in non-TE regions. This structural difference may affect:
+- Pumilio binding affinity/kinetics
+- Regulatory outcomes of TE-derived vs native Pumilio sites
+
+### Scripts Created
+
+- `scripts/analyze_rna_structure.py` - RNAfold-based structure analysis
+
+### Files Created
+
+- `results/structure_analysis/rna_structure_analysis.tsv`
+- `results/structure_analysis/motif_structure_context.tsv`
+- `results/structure_analysis/RNA_STRUCTURE_ANALYSIS_SUMMARY.md`
+
+### Conclusions
+
+1. **TE regions are less structured** due to AT-richness (not selection)
+2. **No evidence for evolved RNA structures** in TE hits
+3. **Pumilio sites show distinct structural context** - potential functional implications
+4. **Poly(A) signals remain accessible** regardless of TE context
+
+---
+
+## Session Update: DUST Filtering Re-Analysis (2026-01-22)
+
+### Critical Finding: DUST Filtering Removes Genuine TE Hits
+
+Previous analyses used `dust=yes` based on the assumption that DUST filtering removes simple repeats that inflate hit counts. This session **challenged that assumption** with a comprehensive parameter sweep.
+
+### Methods
+
+**Parameter sweep:**
+- 3,032 UTRs (10% sample) with paired dinucleotide-shuffled controls
+- 32 parameter combinations: word_size (7, 11) × gapopen (2, 5, 10) × gapextend (1, 2) × penalty (-1, -2) × dust (yes, no)
+- 64 total BLAST runs
+
+### Key Evidence Against DUST Filtering
+
+**1. DUST=no captures MORE high-quality hits:**
+
+| E-value | DUST=yes Real | DUST=no Real | Extra Hits |
+|---------|---------------|--------------|------------|
+| < 1e-10 | 10,074 | 15,299 | **+52%** |
+| < 1e-5 | 17,642 | 50,186 | **+184%** |
+| < 0.001 | 29,345 | 109,941 | **+275%** |
+
+**Shuffled controls get 0 hits at e < 1e-10 for both DUST settings.**
+
+**2. Real/Shuffled enrichment is HIGHER with DUST=no:**
+
+| E-value | DUST=yes Ratio | DUST=no Ratio |
+|---------|----------------|---------------|
+| < 10 | 2.35x | 5.38x |
+| < 0.01 | 12.54x | 33.06x |
+| < 0.001 | 33.08x | **74.18x** |
+| < 1e-5 | 152.09x | **218.20x** |
+
+If DUST=no hits were noise, we'd expect lower ratios. The opposite is observed.
+
+**3. DUST-filtered sequences are NOT simple AT repeats:**
+
+| Hit Category | AT Content |
+|--------------|------------|
+| Unique to DUST=no | **54.7%** |
+| Shared (both settings) | **63.8%** |
+
+The sequences DUST removes are **less AT-rich** than shared sequences. They contain structured repeats like CAG/GCA (polyglutamine-encoding) that are intrinsic to TE families like `roo`.
+
+**4. Example sequences filtered by DUST:**
+
+```
+Query:  CAGCAGCATCTGCAACATTAGCAACAGCAGCAGCAGCAACAACAGCAGCAACAACAACAGCAGCAGCAACAACAGCAAAT
+TE:     CAGCAACAACAGCAGCAGCAGAAACAGCAACAGCAGTAGCAACAGCAGCAACAACAACAGCAGCAGCAACAACGACGACG
+Match:  roo element (FBti0059729)
+E-value: 5.27e-16, Length: 157bp, Identity: 70.7%
+```
+
+These are **genuine TE-derived microsatellite sequences**, not random noise.
+
+**5. Top TE families in DUST-filtered hits:**
+- FBti0059769 (roo): 89 hits
+- FBti0059726 (roo): 76 hits
+- FBti0020154 (roo): 70 hits
+
+The `roo` LTR retrotransposon family dominates - these are specific TE families, not compositional artifacts.
+
+### Positional Distribution by UTR Length (DUST=no)
+
+Coarse bins:
+
+| UTR Length | 5' Enrich | 3' Enrich | Pattern |
+|------------|-----------|-----------|---------|
+| <200bp | 0.50x | **1.57x** | Strong 3' bias |
+| 200-500bp | 0.59x | **1.81x** | Strong 3' bias |
+| 500-1kb | **1.14x** | **1.38x** | U-shape |
+| 1-2kb | 0.92x | 1.01x | Uniform |
+| >2kb | 1.13x | **1.27x** | Slight 3' bias |
+
+#### Fine-Grained Analysis (100bp UTR Bins, Decile Position)
+
+UTR positions normalized to 0-100%. Enrichment = Real/Shuffled density ratio.
+
+| UTR Length | 5' (0-30%) | Mid (30-70%) | 3' (70-100%) | Pattern |
+|------------|-----------|-------------|-------------|---------|
+| 0-100bp    | 0.49x     | 1.06x       | 1.26x       | 3' bias |
+| 100-200bp  | 0.50x     | 1.00x       | **1.53x**   | 3' bias |
+| 200-300bp  | 0.56x     | 0.85x       | **1.66x**   | 3' bias |
+| 300-400bp  | 0.79x     | 0.70x       | **1.60x**   | 3' bias |
+| 400-500bp  | 0.57x     | 0.84x       | **1.67x**   | 3' bias |
+| 500-600bp  | 0.85x     | 1.03x       | 1.14x       | 3' bias |
+| 600-700bp  | **1.46x** | 0.63x       | **1.28x**   | **U-shape** |
+| 800-900bp  | **1.44x** | 0.76x       | 1.08x       | 5' bias |
+| 900-1000bp | **1.43x** | 0.66x       | **1.65x**   | **U-shape** |
+| 1000-1100bp| 0.49x     | 1.03x       | **2.10x**   | Strong 3' |
+| 1200-1300bp| **1.13x** | 1.54x       | 0.62x       | 5' bias |
+| 1300-1400bp| **2.07x** | 0.94x       | 0.60x       | 5' bias |
+
+**Key patterns:**
+- **Short UTRs (0-500bp)**: Consistent 3' bias (1.3-1.7x). TE hits near poly-A site.
+- **Medium UTRs (600-1000bp)**: U-shape at 600-700bp and 900-1000bp — both ends enriched, middle depleted. Suggests functional constraints against TE retention in the UTR interior.
+- **Longer UTRs (>1000bp)**: Variable — some strong 3' bias (1000-1100bp: 2.1x), others shift to 5' bias (1300-1400bp: 2.1x).
+
+Shuffled controls show approximately uniform distributions across all UTR length bins, confirming positional patterns are biological.
+
+**At stringent e-values (e < 0.01), DUST=no shows stronger 3' enrichment** in most categories.
+
+### Revised Parameter Recommendations
+
+```
+word_size=7
+gapopen=2
+gapextend=1
+penalty=-1
+reward=1
+dust=no          # CHANGED from previous recommendation
+evalue < 0.001   # Apply stringent post-filtering for specificity
+```
+
+### Biological Interpretation
+
+1. **TEs contain microsatellite-like repeats**: CAG, ATAT, and other low-complexity motifs are intrinsic features of certain TE families (especially `roo`).
+
+2. **DUST filtering removes functional sequences**: The polyglutamine-encoding CAG repeats found in previous motif analysis (97x enriched) are being filtered by DUST.
+
+3. **Higher signal-to-noise with DUST=no**: When controlling for e-value, DUST=no shows better discrimination between real and shuffled sequences.
+
+4. **Consistent with previous CAG enrichment finding**: The massive CAG repeat enrichment (Session: TE Motif Analysis) makes sense if these sequences are being captured with DUST=no but filtered with DUST=yes.
+
+### Files Created
+
+**Documentation:**
+- `docs/DUST_FILTERING_ANALYSIS.md` - Detailed analysis writeup
+
+**Scripts:**
+- `scripts/full_param_sweep.py` - Parameter sweep with paired shuffled controls
+- `scripts/analyze_param_sweep.py` - Comprehensive sweep analysis (position, quality, TE families)
+- `scripts/analyze_param_position_distribution.py` - Positional distribution analysis (earlier version)
+
+**Results:**
+- `results/param_sweep_full/` - All 64 BLAST result files (3,032 UTR sample)
+- `results/param_sweep_full/sweep_summary.tsv` - Summary statistics
+- `figures/param_sweep_analysis/evalue_analysis.png` - E-value distribution comparison
+- `figures/param_sweep_analysis/position_by_utr_length_dust_comparison.png` - Positional analysis (coarse bins)
+- `figures/param_sweep_analysis/position_by_100bp_bins_clean.png` - Positional analysis (100bp UTR bins, decile position, heatmap)
+- `figures/param_sweep_analysis/position_normalized_by_utr_length.png` - Full 4-panel normalized analysis
+- `figures/param_sweep_analysis/param_effects_summary.png` - Parameter effects overview
+- `figures/param_sweep_analysis/wordsize_comparison.png` - Word size 7 vs 11
+- `figures/param_sweep_analysis/te_family_analysis.png` - TE family enrichment
+- `figures/param_sweep_analysis/analysis_summary.tsv` - Numeric summary
+
+### Impact on Previous Analyses
+
+**Analyses that should be re-run with DUST=no:**
+1. Genome-wide 3'UTR analysis (2.57M hits may be underestimate)
+2. Gene set enrichment (TE density calculations)
+3. TE family distribution
+4. Positional bias analysis
+
+**Analyses likely unaffected:**
+1. Conservation/synteny (based on hit positions, not counts)
+2. RNA structure (based on sequence composition)
+3. Motif analysis (already captured CAG enrichment)
+
+---
