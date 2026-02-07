@@ -243,14 +243,17 @@ class NTv3Scorer:
         )
         species_ids = species_ids.to(self.device)
 
-        out = self.model(
-            input_ids=input_ids,
-            species_ids=species_ids,
-        )
+        with torch.no_grad():
+            out = self.model(
+                input_ids=input_ids,
+                species_ids=species_ids,
+            )
 
         result = {}
         if out.bigwig_tracks_logits is not None:
             result['bigwig'] = out.bigwig_tracks_logits.cpu().float().numpy()
+        del out, input_ids, species_ids
+        torch.cuda.empty_cache()
         return result
 
 
@@ -561,7 +564,7 @@ def main():
         help='Number of top candidates for saturation mutagenesis',
     )
     parser.add_argument(
-        '--satmut-batch-size', type=int, default=32,
+        '--satmut-batch-size', type=int, default=4,
         help='Batch size for saturation mutagenesis forward passes',
     )
     parser.add_argument(
