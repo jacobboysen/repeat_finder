@@ -4,6 +4,85 @@
 > **Purpose**: Track what each file contains and how the repo has evolved
 > **Maintenance**: Update this file when adding new scripts, data, or results
 
+## Completed: NTv3 TE Fossil Scoring Pipeline (2026-02-05)
+
+**Status**: Complete
+
+Scores TE fossils in regulatory regions through NTv3 (Nucleotide Transformer v3) post-trained Drosophila functional track heads. Performs baseline regulatory scoring, ablation (N-mask + shuffle), and optional in-silico saturation mutagenesis. Tests the Quality Paradox hypothesis: do weak BLAST hits with strong regulatory scores indicate exapted TE fossils?
+
+**Requires**: GPU box with A100 (40GB+ VRAM), `torch`, `transformers>=4.55.0`, `pyfaidx`
+
+**New files**:
+| File | Purpose |
+|------|---------|
+| `scripts/score_te_fossils_ntv3.py` | Main NTv3 scoring pipeline (baseline + ablation + satmut) |
+| `scripts/test_ntv3_pipeline.py` | End-to-end test suite for the NTv3 pipeline |
+| `results/ntv3_te_scoring/region_scores.tsv` | Per-region regulatory signal at TE vs non-TE positions |
+| `results/ntv3_te_scoring/ablation_results.tsv` | Ablation deltas (mask + shuffle) quantifying TE contribution |
+| `results/ntv3_te_scoring/integrated_results.tsv` | Merged scores + ablation + BLAST identity with candidate classification |
+| `results/ntv3_te_scoring/satmut_summary.tsv` | Per-region saturation mutagenesis summary (if --satmut) |
+| `results/ntv3_te_scoring/satmut_{region_id}.npy` | Per-position effect matrices (positions x 4 nucleotides) |
+| `results/ntv3_te_scoring/scoring_stats.json` | Summary statistics |
+
+**Candidate classification** (Quality Paradox test):
+- **exapted_fossil**: High ablation delta + low BLAST identity (weak homology, strong regulatory signal)
+- **young_active**: High ablation delta + high BLAST identity (recent TE with intact regulatory elements)
+- **neutral**: Low ablation delta (no regulatory contribution regardless of identity)
+
+**Usage**:
+```bash
+# Run tests first
+python scripts/test_ntv3_pipeline.py
+
+# Full scoring (all TE-bearing regions)
+python scripts/score_te_fossils_ntv3.py -v
+
+# With saturation mutagenesis on top 100 candidates
+python scripts/score_te_fossils_ntv3.py -v --satmut --top-n 100
+
+# Quick test on small subset
+python scripts/score_te_fossils_ntv3.py -v --max-regions 50 --satmut --top-n 10
+
+# Use 650M model for higher accuracy
+python scripts/score_te_fossils_ntv3.py -v --model InstaDeepAI/NTv3_650M_post
+```
+
+**Features**:
+- Checkpoint/resume support for long runs (writes `_checkpoint.json`)
+- Streaming TSV output (partial results available during run)
+- Auto-detects Drosophila species key from model config
+- Handles chromosome edge cases (N-padding)
+
+---
+
+## Completed: Language Model Dataset Preparation (2026-02-05)
+
+**Status**: Complete
+
+Produces a clean dataset for scoring TE-like fossils in regulatory regions with genomic language models (e.g. Nucleotide Transformer v3). Bundles sequences, per-nucleotide TE masks, hit annotations, and TE-free negative controls.
+
+**New files**:
+| File | Purpose |
+|------|---------|
+| `scripts/prepare_te_fossils_for_lm.py` | Build LM-ready dataset from annotated regulatory TE hits |
+| `results/te_fossil_lm_dataset/regions.tsv` | One row per region with TE summary stats |
+| `results/te_fossil_lm_dataset/hits.tsv` | Quality-filtered TE hits with family/class annotations |
+| `results/te_fossil_lm_dataset/sequences.fasta` | All region sequences with enriched headers |
+| `results/te_fossil_lm_dataset/masks.npz` | Per-nucleotide uint8 TE masks (0=none, 1=relaxed, 2=moderate, 3=strict) |
+| `results/te_fossil_lm_dataset/dataset_stats.json` | Summary statistics for validation |
+
+**Quality tiers** (cumulative):
+- **strict**: e-value ≤ 1e-5 (mask=3)
+- **moderate**: e-value ≤ 1e-3 (mask≥2)
+- **relaxed**: e-value ≤ 0.01 (mask≥1)
+
+**Usage**:
+```bash
+python scripts/prepare_te_fossils_for_lm.py -v
+```
+
+---
+
 ## Completed: DUST Filtering Re-Analysis (2026-01-22)
 
 **Status**: Complete
