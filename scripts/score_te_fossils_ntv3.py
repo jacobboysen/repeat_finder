@@ -1087,4 +1087,45 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    # Tee all output to a persistent log file in the output directory
+    import io
+
+    class Tee:
+        def __init__(self, *streams):
+            self.streams = streams
+        def write(self, data):
+            for s in self.streams:
+                s.write(data)
+                s.flush()
+        def flush(self):
+            for s in self.streams:
+                s.flush()
+
+    # Parse args early to get output_dir for log placement
+    # Default log goes next to the script if output_dir isn't created yet
+    _default_log = Path(__file__).parent.parent / 'results' / 'ntv3_run.log'
+    for i, arg in enumerate(sys.argv):
+        if arg == '--output-dir' and i + 1 < len(sys.argv):
+            _log_dir = Path(sys.argv[i + 1])
+            _log_dir.mkdir(parents=True, exist_ok=True)
+            _default_log = _log_dir / 'ntv3_run.log'
+            break
+
+    _default_log.parent.mkdir(parents=True, exist_ok=True)
+    _log_file = open(_default_log, 'w')
+    _tee = Tee(sys.stdout, _log_file)
+    sys.stdout = _tee
+    sys.stderr = Tee(sys.stderr, _log_file)
+
+    try:
+        rc = main()
+    except Exception as e:
+        print(f"\nFATAL: {e}")
+        import traceback
+        traceback.print_exc()
+        rc = 1
+    finally:
+        _log_file.close()
+        print(f"\nLog saved to: {_default_log}", file=sys.__stdout__)
+
+    sys.exit(rc)

@@ -262,4 +262,35 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    # Tee all output to a persistent log file
+    log_path = Path(__file__).parent.parent / 'results' / 'ntv3_test.log'
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    class Tee:
+        def __init__(self, *streams):
+            self.streams = streams
+        def write(self, data):
+            for s in self.streams:
+                s.write(data)
+                s.flush()
+        def flush(self):
+            for s in self.streams:
+                s.flush()
+
+    log_file = open(log_path, 'w')
+    tee = Tee(sys.stdout, log_file)
+    sys.stdout = tee
+    sys.stderr = Tee(sys.stderr, log_file)
+
+    try:
+        rc = main()
+    except Exception as e:
+        print(f"\nFATAL: {e}")
+        import traceback
+        traceback.print_exc()
+        rc = 1
+    finally:
+        log_file.close()
+        print(f"\nLog saved to: {log_path}", file=sys.__stdout__)
+
+    sys.exit(rc)
