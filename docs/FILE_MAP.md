@@ -1,14 +1,20 @@
 # Repository File Map
 
-> **Last updated**: 2026-01-22
+> **Last updated**: 2026-02-11
 > **Purpose**: Track what each file contains and how the repo has evolved
 > **Maintenance**: Update this file when adding new scripts, data, or results
 
-## Completed: NTv3 TE Fossil Scoring Pipeline (2026-02-05)
+## Completed: NTv3 TE Fossil Scoring & Analysis (2026-02-11)
 
-**Status**: Complete
+**Status**: Complete (1,900 regions scored on Lightning.ai A100)
 
-Scores TE fossils in regulatory regions through NTv3 (Nucleotide Transformer v3) post-trained Drosophila functional track heads. Performs baseline regulatory scoring, ablation (N-mask + shuffle), and optional in-silico saturation mutagenesis. Tests the Quality Paradox hypothesis: do weak BLAST hits with strong regulatory scores indicate exapted TE fossils?
+Scores TE fossils in regulatory regions through NTv3 (Nucleotide Transformer v3) post-trained Drosophila functional track heads. Performs baseline regulatory scoring and ablation (N-mask + shuffle). Cross-references with phyloP 27-way conservation and RepeatMasker annotations.
+
+**Key findings** (see `docs/NTv3_ANALYSIS_SUMMARY.md` for full writeup):
+- **Ablation Paradox**: More degraded TE fragments are more load-bearing for regulatory predictions (pident vs ablation_delta: rho = -0.11, p < 1e-6, survives partial correlation controlling for TE fraction). Effect strongest in low-TE regions (Q1: rho = -0.23).
+- **Conservation validates NTv3**: Conserved TE regions are 3.8x more likely to show functional signal (Fisher OR = 3.83, p = 9.5e-19). 145 true exaptation candidates pass both filters.
+- **BLAST-only regions**: 18 scored regions with TE signal invisible to RepeatMasker. CG10465 (KCTD family, human ortholog at 16p11.2 autism locus) is the lead candidate.
+- **No Quality Paradox for pident**: In promoters/enhancers, pident vs conservation is positive (rho = +0.19), opposite to earlier 3'UTR finding.
 
 **Requires**: GPU box with A100 (40GB+ VRAM), `torch`, `transformers>=4.55.0`, `pyfaidx`
 
@@ -17,14 +23,15 @@ Scores TE fossils in regulatory regions through NTv3 (Nucleotide Transformer v3)
 |------|---------|
 | `scripts/score_te_fossils_ntv3.py` | Main NTv3 scoring pipeline (baseline + ablation + satmut) |
 | `scripts/test_ntv3_pipeline.py` | End-to-end test suite for the NTv3 pipeline |
-| `results/ntv3_te_scoring/region_scores.tsv` | Per-region regulatory signal at TE vs non-TE positions |
-| `results/ntv3_te_scoring/ablation_results.tsv` | Ablation deltas (mask + shuffle) quantifying TE contribution |
-| `results/ntv3_te_scoring/integrated_results.tsv` | Merged scores + ablation + BLAST identity with candidate classification |
+| `results/ntv3_te_scoring/region_scores.tsv` | Per-region regulatory signal at TE vs non-TE positions (1,900 rows) |
+| `results/ntv3_te_scoring/ablation_results.tsv` | Ablation deltas (mask + shuffle) quantifying TE contribution (3,800 rows) |
+| `results/ntv3_te_scoring/integrated_results.tsv` | Merged scores + ablation + BLAST identity + classification (1,900 rows) |
 | `results/ntv3_te_scoring/satmut_summary.tsv` | Per-region saturation mutagenesis summary (if --satmut) |
 | `results/ntv3_te_scoring/satmut_{region_id}.npy` | Per-position effect matrices (positions x 4 nucleotides) |
 | `results/ntv3_te_scoring/scoring_stats.json` | Summary statistics |
+| `docs/NTv3_ANALYSIS_SUMMARY.md` | Full analysis writeup with all findings and top candidates |
 
-**Candidate classification** (Quality Paradox test):
+**Candidate classification** (NOTE: pident threshold creates circularity — see analysis summary):
 - **exapted_fossil**: High ablation delta + low BLAST identity (weak homology, strong regulatory signal)
 - **young_active**: High ablation delta + high BLAST identity (recent TE with intact regulatory elements)
 - **neutral**: Low ablation delta (no regulatory contribution regardless of identity)
@@ -339,6 +346,9 @@ See `results/utr_te_loci/METHODOLOGY_NOTES.md` for detailed rationale.
 
 | What you want | Where to find it |
 |---------------|------------------|
+| **NTv3 analysis summary** | `docs/NTv3_ANALYSIS_SUMMARY.md` |
+| **NTv3 scored regions** | `results/ntv3_te_scoring/integrated_results.tsv` |
+| **LM-ready dataset** | `results/te_fossil_lm_dataset/` |
 | Latest germ plasm TE hits | `results/diverged_controls/germ_plasm_sense.tsv` |
 | **Synteny analysis** | `results/repeatmasker_analysis/SYNTENY_ANALYSIS_RESULTS.md` |
 | **Conservation analysis** | `results/repeatmasker_analysis/CONSERVATION_ANALYSIS_RESULTS.md` |
