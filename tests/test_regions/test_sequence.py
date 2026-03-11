@@ -46,6 +46,12 @@ class TestReverseComplement:
     def test_empty_string(self):
         assert reverse_complement("") == ""
 
+    def test_iupac_ambiguity_codes(self):
+        """IUPAC codes R/Y/S/W/K/M/B/D/H/V should be complemented."""
+        assert reverse_complement("R") == "Y"  # A|G -> T|C
+        assert reverse_complement("K") == "M"  # G|T -> A|C
+        assert reverse_complement("ARKG") == "CMYT"
+
 
 class TestExtractSubsequence:
     def test_plus_strand(self):

@@ -164,13 +164,15 @@ class RegionExtractor:
                 continue
 
             strand = feat["strand"]
-            anchor_pos = feat["start"]
 
             if strand == "-":
-                # For minus strand, "upstream" is to the right in genome coords
+                # Biological start (TSS) is at feat["end"] for minus-strand
+                anchor_pos = feat["end"]
+                # "Upstream" is to the right in genome coords
                 win_start = anchor_pos - downstream
                 win_end = anchor_pos + upstream
             else:
+                anchor_pos = feat["start"]
                 win_start = anchor_pos - upstream
                 win_end = anchor_pos + downstream
 

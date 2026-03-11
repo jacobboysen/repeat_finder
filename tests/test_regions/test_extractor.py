@@ -114,14 +114,18 @@ class TestWindowExtraction:
         assert len(regions) > 0
 
     def test_window_minus_strand(self, extractor):
-        """For minus strand, upstream = right in genome coordinates."""
+        """For minus strand, anchor should be at feat['end'] (biological TSS)."""
         regions = extractor.extract_windows(
             anchor_type="gene",
             upstream=10,
             downstream=5,
         )
         minus = [r for r in regions if r["strand"] == "-"]
-        assert len(minus) > 0
+        assert len(minus) == 1
+        # gene002: chr1:350-520, minus strand. TSS is at position 520.
+        # Window: [520-5, 520+10] = [515, 530], clamped to chr len.
+        assert minus[0]["anchor_start"] == 520  # biological start, not 350
+        assert minus[0]["start"] == 515
         assert len(minus[0]["sequence"]) > 0
 
 

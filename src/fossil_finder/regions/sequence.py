@@ -8,7 +8,10 @@ deduplication.
 import hashlib
 from collections import defaultdict
 
-_COMPLEMENT = str.maketrans("ATCGatcgNn", "TAGCtagcNn")
+_COMPLEMENT = str.maketrans(
+    "ATCGatcgNnRYSWKMBDHVryswkmbdhv",
+    "TAGCtagcNnYRSWMKVHDByrswmkvhdb",
+)
 
 
 def gff_to_python_coords(gff_start: int, gff_end: int) -> tuple[int, int]:
