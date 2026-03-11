@@ -162,7 +162,9 @@ class TestPipelineRunner:
         summary = json.loads(summary_path.read_text())
         assert "n_genes_analyzed" in summary
 
-    def test_force_rerun(self, pipeline_config, mini_blast_results, tmp_path):
+    def test_rerun_produces_consistent_results(
+        self, pipeline_config, mini_blast_results, tmp_path
+    ):
         runner = PipelineRunner(
             config=pipeline_config,
             output_dir=tmp_path / "output",
@@ -172,6 +174,7 @@ class TestPipelineRunner:
         result1 = runner.analyze(blast_results=mini_blast_results,
                                  query_to_gene=q2g)
         result2 = runner.analyze(blast_results=mini_blast_results,
-                                 query_to_gene=q2g, force=True)
+                                 query_to_gene=q2g)
         assert isinstance(result2, PipelineResult)
         assert result2.gene_stats is not None
+        assert len(result1.gene_stats) == len(result2.gene_stats)

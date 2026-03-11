@@ -126,7 +126,6 @@ class PipelineRunner:
         te_metadata: dict[str, dict] | None = None,
         repeatmasker_path: str | Path | None = None,
         query_regions: pd.DataFrame | None = None,
-        force: bool = True,
     ) -> PipelineResult:
         """Run full analysis on BLAST results.
 
@@ -140,7 +139,6 @@ class PipelineRunner:
             te_metadata: TE ID -> metadata mapping for class distribution.
             repeatmasker_path: Path to RepeatMasker .out file.
             query_regions: DataFrame for RM overlap (region_id, chrom, start, end).
-            force: Re-run even if outputs exist.
 
         Returns:
             PipelineResult with all analysis outputs.
