@@ -1,0 +1,65 @@
+# Drosophila melanogaster (dm6 / FlyBase r6.66)
+# Reference configuration for the original TE fossil pipeline.
+
+genome:
+  species: "Drosophila melanogaster"
+  assembly: "dm6"
+  release: "r6.66"
+  chromosomes: ["2L", "2R", "3L", "3R", "X", "4"]
+  ucsc_prefix: "chr"
+
+source:
+  adapter: "flybase"
+  genome_fasta: "references/dmel_genome.fasta"
+  annotation_gff: "references/dmel-all-r6.66.gff"
+  gene_id_prefix: "FBgn"
+  transcript_id_prefix: "FBtr"
+  te_instances: "references/dmel_te_flybase.fasta"
+  te_consensus: "references/dmel_te_consensus.fasta"
+  gene_symbol_map: "references/fbgn_to_symbol.tsv"
+  repeatmasker_out: "references/dm6.fa.out"
+  phylop_bigwig: "references/dm6.phyloP27way.bw"
+  synteny:
+    maf_dir: "references/maf/"
+    species: ["droSim1", "droYak2", "droEre2", "droSec1"]
+  functional:
+    expression: "annotations/raw/gene_rpkm_report.tsv"
+    go_annotations: "annotations/raw/gene_association.gaf"
+    localization: "annotations/raw/flyfish_localization.csv"
+    gene_groups: "annotations/raw/gene_group_data.tsv"
+
+blast:
+  word_size: 7
+  gapopen: 2
+  gapextend: 1
+  penalty: -1
+  reward: 1
+  dust: false
+  evalue: 0.001
+
+scoring:
+  model: "InstaDeepAI/NTv3_100M_post"
+  species_key: "fruit_fly"
+  window_size: 32768
+
+gene_sets:
+  germ_plasm:
+    description: "Germ plasm-localized mRNAs"
+    genes: "gene_lists/germ_plasm_fbgn_ids.txt"
+    tier: 1
+  housekeeping:
+    description: "Housekeeping controls"
+    genes: "gene_lists/housekeeping_fbgn_ids.txt"
+    tier: 2
+  somatic:
+    description: "Somatically-localized genes"
+    genes: "gene_lists/somatic_fbgn_ids.txt"
+    tier: 2
+  cleared:
+    description: "Posteriorly-cleared transcripts"
+    genes: "gene_lists/cleared_fbgn_ids.txt"
+    tier: 2
+  adult:
+    description: "Adult-expressed genes"
+    genes: "gene_lists/adult_fbgn_ids.txt"
+    tier: 2

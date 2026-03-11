@@ -1,0 +1,16 @@
+genome:
+  species: "Testus synthetica"
+  assembly: "test_v1"
+  chromosomes: ["chr1", "chr2"]
+
+source:
+  adapter: "custom"
+  genome_fasta: "mini_genome.fasta"
+  annotation_gff: "mini_annotation.gff3"
+  te_consensus: "mini_tes.fasta"
+
+blast:
+  word_size: 7
+  dust: false
+
+gene_sets: {}

@@ -20,20 +20,45 @@ This is a **TE (Transposable Element) Fossil Mining Pipeline** for detecting anc
 
 ## Current Analysis State
 
-**Best BLAST parameters** (as of 2026-01-13):
+**Best BLAST parameters** (revised 2026-01-22, see `docs/DUST_FILTERING_ANALYSIS.md`):
 ```
-word_size=7, gapopen=2, gapextend=1, penalty=-1, reward=1, dust=yes
+word_size=7, gapopen=2, gapextend=1, penalty=-1, reward=1, dust=no
 ```
+
+**E-value strategy:**
+- `dust=no` is correct — DUST filtering discards real TE signal along with simple repeats.
+  The earlier finding that "DUST is critical" was superseded by the full analysis in
+  `docs/DUST_FILTERING_ANALYSIS.md` which showed `dust=no` captures 52% more high-quality
+  hits with better real-vs-shuffled enrichment ratios.
+- **High stringency / quick compute**: `evalue=0.001` — good default for most analyses.
+- **Exhaustive search**: `evalue` up to `10` — justified by the hypothesis that TE fossils
+  are highly diverged and may recur at multiple loci, so weaker hits in aggregate can be
+  informative. Use higher e-values when compute budget allows and when analyzing the full
+  "fossil distribution" space.
+- Choose e-value based on analysis goals and available compute, not as a fixed parameter.
 
 **Current results location**: `results/` (archived results in `results/archive/`)
 
-**Key finding**: DUST filtering is critical - without it, 90% of hits are simple repeats.
+## Refactoring Status
+
+**Active refactor**: Migrating from flat `scripts/` to installable `fossil_finder` package.
+- Plan: `docs/superpowers/plans/2026-03-10-fossil-finder-phase1-foundation.md`
+- New package: `src/fossil_finder/` (config-driven, multi-genome capable)
+- Old scripts in `scripts/` remain functional during migration
+- Python upgraded from 3.8 → 3.11
 
 ## Environment Setup
 
-### Using Conda (recommended)
+### New package (recommended)
 ```bash
 conda env create -f environment.yml
+conda activate fossil-finder
+pip install -e ".[dev]"
+```
+
+### Legacy conda env
+```bash
+# Old env still works for scripts/ during migration
 conda activate bioinformatics-program
 ```
 

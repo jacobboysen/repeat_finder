@@ -1,0 +1,36 @@
+# Genome Configuration Template for fossil_finder
+#
+# Copy this file, rename to <species>_<assembly>.yaml, and fill in your values.
+# Fields marked REQUIRED must be provided. All others are optional.
+
+genome:
+  species: ""              # REQUIRED. Binomial name, e.g. "Apis mellifera"
+  assembly: ""             # REQUIRED. Assembly ID, e.g. "Amel_HAv3.1"
+  release: null
+  chromosomes: null        # List of chrom names, or null for auto-detect
+  ucsc_prefix: null
+
+source:
+  adapter: "custom"        # REQUIRED. One of: flybase, ensembl, ncbi, custom
+  genome_fasta: ""         # REQUIRED. Genome assembly FASTA
+  annotation_gff: ""       # REQUIRED. Gene annotations in GFF3 format
+  gene_id_prefix: null
+  transcript_id_prefix: null
+  te_instances: null
+  te_consensus: null       # "dfam:Species_name" or local FASTA path
+  gene_symbol_map: null
+  repeatmasker_out: null
+  phylop_bigwig: null
+  synteny: null
+  functional: null
+
+blast:
+  word_size: 7
+  gapopen: 2
+  gapextend: 1
+  penalty: -1
+  reward: 1
+  dust: false
+  evalue: 0.001
+
+gene_sets: {}

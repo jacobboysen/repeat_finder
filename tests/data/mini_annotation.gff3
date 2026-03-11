@@ -1,0 +1,25 @@
+##gff-version 3
+##sequence-region chr1 1 520
+##sequence-region chr2 1 520
+chr1	test	gene	1	300	.	+	.	ID=gene001;Name=testgene1
+chr1	test	mRNA	1	300	.	+	.	ID=mRNA001;Parent=gene001;Name=testgene1-RA
+chr1	test	exon	1	100	.	+	.	ID=exon001;Parent=mRNA001
+chr1	test	CDS	20	90	.	+	0	ID=cds001;Parent=mRNA001
+chr1	test	exon	200	300	.	+	.	ID=exon002;Parent=mRNA001
+chr1	test	CDS	200	280	.	+	2	ID=cds002;Parent=mRNA001
+chr1	test	five_prime_UTR	1	19	.	+	.	ID=utr5_001;Parent=mRNA001
+chr1	test	three_prime_UTR	281	300	.	+	.	ID=utr3_001;Parent=mRNA001
+chr1	test	gene	350	520	.	-	.	ID=gene002;Name=testgene2
+chr1	test	mRNA	350	520	.	-	.	ID=mRNA002;Parent=gene002;Name=testgene2-RA
+chr1	test	exon	350	520	.	-	.	ID=exon003;Parent=mRNA002
+chr1	test	CDS	370	500	.	-	0	ID=cds003;Parent=mRNA002
+chr1	test	three_prime_UTR	350	369	.	-	.	ID=utr3_002;Parent=mRNA002
+chr1	test	five_prime_UTR	501	520	.	-	.	ID=utr5_002;Parent=mRNA002
+chr2	test	gene	50	400	.	+	.	ID=gene003;Name=testgene3
+chr2	test	mRNA	50	400	.	+	.	ID=mRNA003;Parent=gene003;Name=testgene3-RA
+chr2	test	exon	50	150	.	+	.	ID=exon004;Parent=mRNA003
+chr2	test	exon	250	400	.	+	.	ID=exon005;Parent=mRNA003
+chr2	test	CDS	70	140	.	+	0	ID=cds004;Parent=mRNA003
+chr2	test	CDS	250	380	.	+	1	ID=cds005;Parent=mRNA003
+chr2	test	five_prime_UTR	50	69	.	+	.	ID=utr5_003;Parent=mRNA003
+chr2	test	three_prime_UTR	381	400	.	+	.	ID=utr3_003;Parent=mRNA003
