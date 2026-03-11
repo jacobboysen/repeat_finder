@@ -97,6 +97,25 @@ class TestTECoordinateNormalization:
         # After normalization, both rows have te_start=1, te_end=100 → duplicate
         assert len(result) == 1
 
+    def test_normalization_preserves_original_coords(self):
+        """Original te_start/te_end values should not be mutated."""
+        df = pd.DataFrame({
+            "gene_id": ["g1", "g2"],
+            "chrom": ["chr1", "chr1"],
+            "genomic_start": [100, 300],
+            "genomic_end": [200, 400],
+            "te_id": ["TE1", "TE2"],
+            "te_start": [100, 200],   # reversed
+            "te_end": [1, 50],        # reversed
+        })
+        dedup = HitDeduplicator(normalize_te_coords=True)
+        result = dedup.deduplicate(df)
+        # Original coords should be preserved in the output
+        assert result.iloc[0]["te_start"] == 100
+        assert result.iloc[0]["te_end"] == 1
+        assert result.iloc[1]["te_start"] == 200
+        assert result.iloc[1]["te_end"] == 50
+
     def test_without_normalization_keeps_both(self):
         """Without normalization, (1,100) and (100,1) are different keys."""
         df = pd.DataFrame({

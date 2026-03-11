@@ -61,12 +61,17 @@ class HitDeduplicator:
         work = df.copy()
 
         if self.normalize_te_coords and "te_start" in work.columns and "te_end" in work.columns:
-            te_min = work[["te_start", "te_end"]].min(axis=1)
-            te_max = work[["te_start", "te_end"]].max(axis=1)
-            work["te_start"] = te_min
-            work["te_end"] = te_max
-
-        result = work.drop_duplicates(subset=self.key_columns, keep="first")
+            # Use temporary columns for normalization so original coords are preserved
+            work["_te_start_norm"] = work[["te_start", "te_end"]].min(axis=1)
+            work["_te_end_norm"] = work[["te_start", "te_end"]].max(axis=1)
+            dedup_cols = [
+                "_te_start_norm" if c == "te_start" else "_te_end_norm" if c == "te_end" else c
+                for c in self.key_columns
+            ]
+            work = work.drop_duplicates(subset=dedup_cols, keep="first")
+            result = work.drop(columns=["_te_start_norm", "_te_end_norm"])
+        else:
+            result = work.drop_duplicates(subset=self.key_columns, keep="first")
 
         total = len(df)
         unique = len(result)
