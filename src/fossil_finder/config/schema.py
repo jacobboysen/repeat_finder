@@ -62,14 +62,17 @@ class BlastSpec(BaseModel):
     and higher real/shuffled enrichment ratios than dust=yes.
     """
 
+    program: str = "blastn"
     word_size: int = 7
     gapopen: int = 2
     gapextend: int = 1
     penalty: int = -1
     reward: int = 1
     dust: bool = False
+    soft_masking: bool = True
     evalue: float = 0.001
     max_target_seqs: int = 1000
+    max_hsps: int = 10
     num_threads: int = 4
 
 

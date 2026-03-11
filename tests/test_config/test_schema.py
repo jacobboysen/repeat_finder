@@ -77,6 +77,39 @@ class TestGenomeConfig:
             GenomeConfig(**bad)
 
 
+class TestBlastSpecExtended:
+    def test_max_hsps_default(self):
+        from fossil_finder.config.schema import BlastSpec
+
+        spec = BlastSpec()
+        assert spec.max_hsps == 10
+
+    def test_program_default(self):
+        from fossil_finder.config.schema import BlastSpec
+
+        spec = BlastSpec()
+        assert spec.program == "blastn"
+
+    def test_program_override(self):
+        from fossil_finder.config.schema import BlastSpec
+
+        spec = BlastSpec(program="tblastx")
+        assert spec.program == "tblastx"
+
+    def test_soft_masking_default(self):
+        from fossil_finder.config.schema import BlastSpec
+
+        spec = BlastSpec()
+        assert spec.soft_masking is True
+
+    def test_blast_spec_in_config(self, mini_genome_config):
+        from fossil_finder.config.schema import load_genome_config
+
+        config = load_genome_config(mini_genome_config)
+        assert config.blast.program == "blastn"
+        assert config.blast.max_hsps == 10
+
+
 class TestLoadGenomeConfig:
     def test_load_from_yaml_file(self, tmp_path):
         config_path = tmp_path / "test_config.yaml"
