@@ -1,0 +1,7 @@
+   SW  perc perc perc  query      position in query           matching       repeat              position in  repeat
+score  div. del. ins.  sequence    begin     end    (left)    repeat         class/family         begin  end (left)   ID
+  450  12.3  1.2  0.5  chr1          50       200  (312)  +  TE_gypsy1      LTR/Gypsy              1    150  (4850)   1
+  320   8.1  0.0  0.0  chr1         280       350  (162)  C  TE_jockey1     LINE/Jockey          (3850)  150     1     2
+  180  15.5  2.0  1.0  chr1         400       450  (62)   +  TE_mariner1    DNA/TcMar-Mariner      1     50  (100)    3
+  500   5.2  0.5  0.3  chr2          80       300  (212)  +  TE_gypsy1      LTR/Gypsy              1    220  (4780)   4
+  250  18.0  1.5  0.8  chr2         350       420  (92)   C  TE_copia1      LTR/Copia            (4400)  100     1     5

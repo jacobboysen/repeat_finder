@@ -87,6 +87,12 @@ def mini_te_consensus_fb(test_data_dir) -> Path:
 
 
 @pytest.fixture
+def mini_repeatmasker(test_data_dir) -> Path:
+    """Path to synthetic RepeatMasker .out file."""
+    return test_data_dir / "mini_repeatmasker.out"
+
+
+@pytest.fixture
 def flybase_config(test_data_dir):
     """A GenomeConfig wired to FlyBase adapter with test fixture paths."""
     from fossil_finder.config.schema import GenomeConfig
