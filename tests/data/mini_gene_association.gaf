@@ -1,0 +1,10 @@
+!gaf-version: 2.2
+!generated-by: test
+FB	FBgn0000001	geneA		GO:0003674	FB:FBrf0000001	IDA		F	Gene A	geneA	gene	taxon:7227	20240101	FlyBase
+FB	FBgn0000001	geneA		GO:0006468	FB:FBrf0000001	IDA		P	Gene A	geneA	gene	taxon:7227	20240101	FlyBase
+FB	FBgn0000002	geneB		GO:0005634	FB:FBrf0000002	IEA		C	Gene B	geneB	gene	taxon:7227	20240101	FlyBase
+FB	FBgn0000002	geneB	NOT	GO:0005737	FB:FBrf0000002	IEA		C	Gene B	geneB	gene	taxon:7227	20240101	FlyBase
+FB	FBgn0000003	geneC		GO:0003700	FB:FBrf0000003	IDA		F	Gene C	geneC	gene	taxon:7227	20240101	FlyBase
+FB	FBgn0000003	geneC		GO:0006355	FB:FBrf0000003	IMP		P	Gene C	geneC	gene	taxon:7227	20240101	FlyBase
+FB	FBgn0000003	geneC		GO:0005634	FB:FBrf0000003	IDA		C	Gene C	geneC	gene	taxon:7227	20240101	FlyBase
+FB	FBgn0000004	geneD		GO:0016020	FB:FBrf0000004	IEA		C	Gene D	geneD	gene	taxon:7227	20240101	FlyBase

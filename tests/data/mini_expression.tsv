@@ -1,0 +1,6 @@
+#gene_primary_id	gene_symbol	gene_fullname	gene_type	ovary	testis	embryo
+FBgn0000001	geneA	Gene A protein	protein_coding_gene	125.4	10.2	55.0
+FBgn0000002	geneB	Gene B protein	protein_coding_gene	0.5	200.3	15.1
+FBgn0000003	geneC	Gene C protein	protein_coding_gene	50.0	50.0	50.0
+FBgn0000004	geneD	Gene D protein	protein_coding_gene	0.0	0.0	300.5
+FBgn0000005	geneE	Gene E protein	protein_coding_gene	75.2	75.2	75.2

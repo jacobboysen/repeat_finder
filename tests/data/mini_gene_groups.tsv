@@ -1,0 +1,6 @@
+#FB_group_id	FB_group_symbol	FB_group_name	Parent_FB_group_id	Parent_FB_group_symbol	Group_member_FB_gene_id	Group_member_FB_gene_symbol
+FBgg0000001	RIBOSOMAL	Ribosomal proteins			FBgn0000001	geneA
+FBgg0000001	RIBOSOMAL	Ribosomal proteins			FBgn0000002	geneB
+FBgg0000001	RIBOSOMAL	Ribosomal proteins			FBgn0000003	geneC
+FBgg0000002	KINASE	Protein kinases			FBgn0000003	geneC
+FBgg0000002	KINASE	Protein kinases			FBgn0000004	geneD

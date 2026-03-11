@@ -1,0 +1,7 @@
+Probe,gene,FBgn ID,stage,term
+RE00001,geneA,FBcl0000001,stage 1-3,posterior
+RE00002,geneA,FBcl0000001,stage 4-5,pole plasm
+RE00003,geneB,FBcl0000002,stage 1-3,apical
+RE00004,geneC,FBcl0000003,stage 1-3,cytoplasmic
+RE00005,geneC,FBcl0000003,stage 4-5,nuclear
+RE00006,geneD,FBcl0000004,stage 1-3,NA
