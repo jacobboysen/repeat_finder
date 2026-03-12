@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -281,3 +282,40 @@ class TestPipelineRunner:
         )
         assert "top_motifs" in motif_data
         assert "n_unique_kmers" in motif_data
+
+    def test_repeatmasker_method_delegates(self, pipeline_config, tmp_path):
+        """RepeatMasker step delegates to RepeatMaskerRunner."""
+        runner = PipelineRunner(
+            config=pipeline_config,
+            output_dir=tmp_path / "output",
+        )
+        fake_fasta = tmp_path / "genome.fa"
+        fake_fasta.write_text(">chr1\nACGT\n")
+        expected_out = tmp_path / "output" / "repeatmasker" / "genome.fa.out"
+
+        with patch(
+            "fossil_finder.pipeline.runner.RepeatMaskerRunner.run",
+            return_value=expected_out,
+        ) as mock_rm:
+            result = runner.repeatmasker(fake_fasta)
+            assert result == expected_out
+            mock_rm.assert_called_once()
+
+    def test_repeatmasker_custom_output_dir(self, pipeline_config, tmp_path):
+        runner = PipelineRunner(
+            config=pipeline_config,
+            output_dir=tmp_path / "output",
+        )
+        fake_fasta = tmp_path / "genome.fa"
+        fake_fasta.write_text(">chr1\nACGT\n")
+        custom_dir = tmp_path / "custom_rm"
+        expected_out = custom_dir / "genome.fa.out"
+
+        with patch(
+            "fossil_finder.pipeline.runner.RepeatMaskerRunner.run",
+            return_value=expected_out,
+        ) as mock_rm:
+            result = runner.repeatmasker(fake_fasta, output_dir=custom_dir)
+            assert result == expected_out
+            call_args = mock_rm.call_args
+            assert call_args[0][1] == custom_dir

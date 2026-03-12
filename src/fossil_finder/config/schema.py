@@ -77,6 +77,23 @@ class BlastSpec(BaseModel):
     num_threads: int = 4
 
 
+class RepeatMaskerSpec(BaseModel):
+    """RepeatMasker execution parameters.
+
+    Controls how RepeatMasker is invoked on input sequences.
+    The species flag selects the built-in RM library for that organism.
+    """
+
+    species: str = "drosophila"
+    engine: str = "rmblast"
+    parallel: int = 4
+    sensitivity: Literal["default", "slow", "quick", "rush"] = "default"
+    lib: str | None = None  # custom RM library (overrides species)
+    gff: bool = True  # also produce GFF output
+    no_is: bool = False  # skip bacterial insertion element check
+    xsmall: bool = False  # output soft-masked lowercase instead of N-masked
+
+
 class ScoringSpec(BaseModel):
     """ML/LM scoring configuration."""
 
@@ -99,6 +116,7 @@ class GenomeConfig(BaseModel):
     genome: GenomeSpec
     source: SourceSpec
     blast: BlastSpec = BlastSpec()
+    repeatmasker: RepeatMaskerSpec = RepeatMaskerSpec()
     scoring: ScoringSpec = ScoringSpec()
     gene_sets: dict[str, GeneSetSpec] = {}
 
