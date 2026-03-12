@@ -959,6 +959,204 @@ def write_summary(utr_type, out_dir):
             print(f"    {f.name} ({size}B)")
 
 
+def run_ws6(df, regions_path, out_dir):
+    """WS6: Conservation analysis — phyloP scoring of BLAST hits.
+
+    Converts hits to genomic BED coords, scores with bigWigAverageOverBed,
+    analyzes conservation by quality tier, known/novel status, and pident.
+    """
+    print(f"\n{'='*60}")
+    print(f"WS6: Conservation (phyloP)")
+    print(f"{'='*60}")
+    t0 = time.time()
+
+    PHYLOP_BW = DATA_DIR / "references" / "dm6.phyloP27way.bw"
+    BIGWIG_TOOL = DATA_DIR / "references" / "tools" / "bigWigAverageOverBed"
+
+    if not PHYLOP_BW.exists():
+        print("  SKIP: phyloP bigWig not found")
+        return
+    if not BIGWIG_TOOL.exists():
+        print("  SKIP: bigWigAverageOverBed not found")
+        return
+
+    # Build region lookup from regions.tsv
+    if not regions_path.exists():
+        print("  SKIP: regions.tsv not found")
+        return
+    regions = pd.read_csv(regions_path, sep="\t")
+    region_lookup = {}
+    for _, r in regions.iterrows():
+        region_lookup[r["region_id"]] = {
+            "chrom": r["chrom"],
+            "start": int(r["start"]),
+            "end": int(r["end"]),
+            "strand": r["strand"],
+        }
+
+    # Convert BLAST hits to genomic BED coordinates (vectorized)
+    # Join region metadata onto hits
+    region_df = pd.DataFrame.from_dict(region_lookup, orient="index")
+    region_df.index.name = "qseqid"
+    region_df = region_df.rename(columns={
+        "chrom": "r_chrom", "start": "r_start", "end": "r_end", "strand": "r_strand"
+    })
+
+    # Work on strict+moderate first (smaller, higher value), then sample relaxed
+    tiers_to_score = df[df["tier"].isin(["strict", "moderate"])].copy()
+    relaxed = df[df["tier"] == "relaxed"]
+    n_relaxed_sample = min(200_000, len(relaxed))
+    if n_relaxed_sample > 0:
+        relaxed_sample = relaxed.sample(n=n_relaxed_sample, random_state=42)
+        tiers_to_score = pd.concat([tiers_to_score, relaxed_sample], ignore_index=True)
+
+    print(f"  Scoring {len(tiers_to_score):,} hits "
+          f"(strict+moderate: {(tiers_to_score['tier'] != 'relaxed').sum():,}, "
+          f"relaxed sample: {n_relaxed_sample:,})")
+
+    # Merge region coords
+    hits = tiers_to_score.merge(region_df, left_on="qseqid", right_index=True, how="left")
+    hits = hits.dropna(subset=["r_chrom"])
+
+    # Compute genomic BED coords
+    # + strand: genomic_start = region_start + qstart - 1  (1-based)
+    # - strand: genomic_start = region_end - qend + 1  (1-based)
+    plus_mask = hits["r_strand"] == "+"
+    hits.loc[plus_mask, "g_start"] = hits.loc[plus_mask, "r_start"] + hits.loc[plus_mask, "qstart"] - 2  # 0-based
+    hits.loc[plus_mask, "g_end"] = hits.loc[plus_mask, "r_start"] + hits.loc[plus_mask, "qend"] - 1  # exclusive
+
+    hits.loc[~plus_mask, "g_start"] = hits.loc[~plus_mask, "r_end"] - hits.loc[~plus_mask, "qend"]  # 0-based
+    hits.loc[~plus_mask, "g_end"] = hits.loc[~plus_mask, "r_end"] - hits.loc[~plus_mask, "qstart"] + 1  # exclusive
+
+    hits["g_start"] = hits["g_start"].astype(int)
+    hits["g_end"] = hits["g_end"].astype(int)
+    hits["bed_chrom"] = "chr" + hits["r_chrom"]
+
+    # Assign unique hit IDs for merging back
+    hits["hit_id"] = [f"hit_{i}" for i in range(len(hits))]
+
+    # Write BED file (sorted by chrom, start for speed)
+    bed_path = out_dir / "ws6_hits.bed"
+    bed_df = hits[["bed_chrom", "g_start", "g_end", "hit_id"]].copy()
+    bed_df = bed_df.sort_values(["bed_chrom", "g_start"])
+
+    # Filter out any invalid coordinates
+    bed_df = bed_df[(bed_df["g_start"] >= 0) & (bed_df["g_end"] > bed_df["g_start"])]
+    bed_df.to_csv(bed_path, sep="\t", index=False, header=False)
+    print(f"  Wrote {len(bed_df):,} BED intervals to {bed_path.name}")
+
+    # Run bigWigAverageOverBed
+    import subprocess
+    phylop_out = out_dir / "ws6_phylop_raw.tab"
+    cmd = [str(BIGWIG_TOOL), str(PHYLOP_BW), str(bed_path), str(phylop_out)]
+    print(f"  Running bigWigAverageOverBed...")
+    t1 = time.time()
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"  ERROR: bigWigAverageOverBed failed: {result.stderr[:500]}")
+        return
+    print(f"  bigWigAverageOverBed completed in {time.time()-t1:.1f}s")
+
+    # Parse results: columns are name, size, covered, sum, mean0, mean
+    # mean0 = mean treating uncovered bases as 0
+    # mean = mean of only covered bases
+    phylop_scores = pd.read_csv(
+        phylop_out, sep="\t", header=None,
+        names=["hit_id", "size", "covered", "sum", "mean0", "mean"]
+    )
+
+    # Merge back
+    hits = hits.merge(phylop_scores[["hit_id", "mean0", "mean", "covered", "size"]],
+                      on="hit_id", how="left")
+    hits["phylop_mean"] = hits["mean0"]  # mean0 treats uncovered as 0 (conservative)
+    hits["phylop_coverage"] = hits["covered"] / hits["size"].clip(lower=1)
+
+    # ── 6.1 PhyloP by quality tier ──
+    print("\n  PhyloP by quality tier:")
+    tier_stats = []
+    for tier in ["strict", "moderate", "relaxed"]:
+        subset = hits[hits["tier"] == tier]
+        if len(subset) == 0:
+            continue
+        stats_row = {
+            "tier": tier,
+            "n_hits": len(subset),
+            "mean_phylop": float(subset["phylop_mean"].mean()),
+            "median_phylop": float(subset["phylop_mean"].median()),
+            "std_phylop": float(subset["phylop_mean"].std()),
+            "pct_positive": float((subset["phylop_mean"] > 0).mean() * 100),
+            "pct_negative": float((subset["phylop_mean"] < 0).mean() * 100),
+            "mean_coverage": float(subset["phylop_coverage"].mean()),
+        }
+        tier_stats.append(stats_row)
+        print(f"    {tier}: mean={stats_row['mean_phylop']:.4f}, "
+              f"median={stats_row['median_phylop']:.4f}, "
+              f"positive={stats_row['pct_positive']:.1f}%, "
+              f"coverage={stats_row['mean_coverage']:.1%}")
+    pd.DataFrame(tier_stats).to_csv(out_dir / "phylop_by_quality.tsv", sep="\t", index=False)
+
+    # ── 6.3 Known (RM) vs Novel conservation ──
+    if "in_repeatmasker" in hits.columns:
+        print("\n  Known vs Novel conservation:")
+        known = hits[hits["in_repeatmasker"] == True]["phylop_mean"]
+        novel = hits[hits["in_repeatmasker"] == False]["phylop_mean"]
+        kn_stats = {}
+        for label, data in [("known", known), ("novel", novel)]:
+            if len(data) > 0:
+                kn_stats[label] = {
+                    "n": int(len(data)),
+                    "mean_phylop": float(data.mean()),
+                    "median_phylop": float(data.median()),
+                    "std_phylop": float(data.std()),
+                }
+                print(f"    {label}: n={len(data):,}, mean={data.mean():.4f}, "
+                      f"median={data.median():.4f}")
+        if len(known) > 0 and len(novel) > 0:
+            mw_stat, mw_p = stats.mannwhitneyu(known, novel, alternative="two-sided")
+            kn_stats["mannwhitney_U"] = float(mw_stat)
+            kn_stats["mannwhitney_p"] = float(mw_p)
+            print(f"    Mann-Whitney U={mw_stat:.0f}, p={mw_p:.2e}")
+        import json
+        with open(out_dir / "known_vs_novel_conservation.json", "w") as f:
+            json.dump(kn_stats, f, indent=2)
+
+    # ── 6.5 Pident vs conservation correlation ──
+    print("\n  Pident vs conservation correlation:")
+    corr_results = {}
+    valid = hits.dropna(subset=["phylop_mean", "pident"])
+    if len(valid) >= 10:
+        rho, p = stats.spearmanr(valid["pident"], valid["phylop_mean"])
+        corr_results["overall"] = {"rho": float(rho), "p": float(p), "n": len(valid)}
+        print(f"    Overall: Spearman rho={rho:.4f}, p={p:.2e}, n={len(valid):,}")
+
+    for tier in ["strict", "moderate", "relaxed"]:
+        subset = valid[valid["tier"] == tier]
+        if len(subset) >= 10:
+            rho, p = stats.spearmanr(subset["pident"], subset["phylop_mean"])
+            corr_results[tier] = {"rho": float(rho), "p": float(p), "n": len(subset)}
+            print(f"    {tier}: rho={rho:.4f}, p={p:.2e}, n={len(subset):,}")
+
+    import json
+    with open(out_dir / "quality_paradox_stats.json", "w") as f:
+        json.dump(corr_results, f, indent=2)
+
+    # Save per-hit phyloP data (for downstream WS2 motif analysis)
+    phylop_cols = ["qseqid", "sseqid", "pident", "length", "tier", "hit_id",
+                   "r_chrom", "g_start", "g_end", "phylop_mean", "phylop_coverage"]
+    if "in_repeatmasker" in hits.columns:
+        phylop_cols.append("in_repeatmasker")
+    if "gene_id" in hits.columns:
+        phylop_cols.append("gene_id")
+    available_cols = [c for c in phylop_cols if c in hits.columns]
+    hits[available_cols].to_csv(out_dir / "phylop_by_hit.tsv", sep="\t", index=False)
+
+    # Cleanup temp files
+    bed_path.unlink(missing_ok=True)
+    phylop_out.unlink(missing_ok=True)
+
+    print(f"\nWS6 complete in {time.time()-t0:.1f}s")
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -1033,6 +1231,7 @@ def main():
         df = run_ws3(df, gene_sets_loaded, out_dir, te_names, consensus_map)
         run_ws5(df, out_dir)
         run_ws7(df, gene_sets_loaded, out_dir)
+        run_ws6(df, regions_path, out_dir)
         run_ws4(df, out_dir)
         write_summary(utr_type, out_dir)
 
