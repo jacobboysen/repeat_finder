@@ -1,3 +1,6 @@
+> **SUPERSEDED** by `docs/superpowers/plans/2026-03-12-snakemake-workflow.md` which adds
+> multi-genome support, conditional RepeatMasker, and the bridge script pattern.
+
 # Fossil Finder Phase 8: Snakemake Workflow
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
