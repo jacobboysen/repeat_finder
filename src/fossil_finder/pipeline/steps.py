@@ -9,10 +9,29 @@ from pathlib import Path
 import pandas as pd
 
 from fossil_finder.analysis.aggregation import aggregate_by_gene, compute_density
+from fossil_finder.analysis.conservation import (
+    compute_pident_conservation_correlation,
+    hits_to_genomic_bed,
+    score_with_bigwig,
+    summarize_conservation_by_group,
+)
 from fossil_finder.analysis.enrichment import test_gene_set_enrichment
 from fossil_finder.analysis.families import (
     compute_class_distribution,
     compute_family_stats,
+)
+from fossil_finder.analysis.multiplicity import compute_hit_multiplicity, compute_te_breadth
+from fossil_finder.analysis.positional import (
+    compute_end_bias,
+    compute_positional_profile,
+    compute_te_position,
+    compute_utr_position,
+)
+from fossil_finder.analysis.quality_tiers import (
+    assign_quality_tiers,
+    compute_edit_stats,
+    compute_tier_edit_summary,
+    summarize_tiers,
 )
 from fossil_finder.analysis.repeatmasker import (
     classify_hits,
@@ -241,3 +260,136 @@ def step_repeatmasker_overlap(
             "novel_hits": len(novel),
         },
     }
+
+
+def step_quality_tiers(
+    df: pd.DataFrame,
+    strict_pident: float = 85,
+    strict_length: int = 100,
+    moderate_pident: float = 75,
+    moderate_length: int = 50,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Assign quality tiers and compute edit stats.
+
+    Args:
+        df: BLAST results DataFrame.
+        strict_pident: Min percent identity for strict tier.
+        strict_length: Min alignment length for strict tier.
+        moderate_pident: Min percent identity for moderate tier.
+        moderate_length: Min alignment length for moderate tier.
+
+    Returns:
+        Tuple of (annotated DataFrame with tier+edit columns, tier summary DataFrame).
+    """
+    df = assign_quality_tiers(
+        df,
+        strict_pident=strict_pident,
+        strict_length=strict_length,
+        moderate_pident=moderate_pident,
+        moderate_length=moderate_length,
+    )
+    df = compute_edit_stats(df)
+    summary = summarize_tiers(df)
+    return df, summary
+
+
+def step_positional_analysis(df: pd.DataFrame) -> dict:
+    """Compute positional profiles and end bias.
+
+    Args:
+        df: BLAST results with qstart, qlen, sstart, slen, strand columns.
+
+    Returns:
+        Dict with 'utr_profile', 'te_profile', and 'end_bias' keys.
+    """
+    df = compute_utr_position(df)
+    df = compute_te_position(df)
+    return {
+        "utr_profile": compute_positional_profile(df, "normalized_utr_pos"),
+        "te_profile": compute_positional_profile(df, "normalized_te_pos"),
+        "end_bias": compute_end_bias(df),
+    }
+
+
+def step_multiplicity_analysis(
+    df: pd.DataFrame,
+    query_to_gene: dict[str, str] | None = None,
+) -> dict:
+    """Compute hit multiplicity and TE breadth statistics.
+
+    Args:
+        df: BLAST results DataFrame.
+        query_to_gene: Optional mapping from query ID to gene ID.
+
+    Returns:
+        Dict with 'multiplicity' summary and 'te_breadth' DataFrame.
+    """
+    return {
+        "multiplicity": compute_hit_multiplicity(df, query_to_gene),
+        "te_breadth": compute_te_breadth(df, query_to_gene),
+    }
+
+
+def step_conservation_analysis(
+    df: pd.DataFrame,
+    regions: pd.DataFrame,
+    bigwig_path: str | Path,
+    tool_path: str | Path,
+    sample_relaxed: int = 200_000,
+) -> dict:
+    """Score BLAST hits with phyloP conservation.
+
+    Args:
+        df: BLAST results with tier column.
+        regions: Region metadata with region_id, chrom, start, end, strand.
+        bigwig_path: Path to phyloP bigWig file.
+        tool_path: Path to bigWigAverageOverBed binary.
+        sample_relaxed: Max relaxed-tier hits to score (for performance).
+
+    Returns:
+        Dict with 'scores' DataFrame, 'by_tier' summary,
+        'correlation' stats, and 'scored_df' (annotated hits).
+    """
+    bigwig_path = Path(bigwig_path)
+    tool_path = Path(tool_path)
+
+    # Select hits to score: all strict+moderate, sample relaxed
+    if "tier" in df.columns:
+        non_relaxed = df[df["tier"].isin(["strict", "moderate"])]
+        relaxed = df[df["tier"] == "relaxed"]
+        n_sample = min(sample_relaxed, len(relaxed))
+        if n_sample > 0:
+            sampled = relaxed.sample(n=n_sample, random_state=42)
+            to_score = pd.concat([non_relaxed, sampled], ignore_index=True)
+        else:
+            to_score = non_relaxed.copy()
+    else:
+        to_score = df.copy()
+
+    # Convert to genomic BED
+    bed_df = hits_to_genomic_bed(to_score, regions)
+    if bed_df.empty:
+        return {"scores": pd.DataFrame(), "by_tier": pd.DataFrame(),
+                "correlation": None, "scored_df": pd.DataFrame()}
+
+    # Score with bigWig
+    scores = score_with_bigwig(bed_df, bigwig_path, tool_path)
+
+    # Merge scores back
+    scored = bed_df.merge(
+        scores[["hit_id", "mean0", "mean", "covered", "size"]],
+        on="hit_id", how="left",
+    )
+    scored["phylop_mean"] = scored["mean0"]
+    scored["phylop_coverage"] = scored["covered"] / scored["size"].clip(lower=1)
+
+    result = {"scored_df": scored, "scores": scores}
+
+    # Summarize by tier if available
+    if "tier" in scored.columns:
+        result["by_tier"] = summarize_conservation_by_group(scored, "tier")
+
+    # Pident vs conservation correlation
+    result["correlation"] = compute_pident_conservation_correlation(scored)
+
+    return result

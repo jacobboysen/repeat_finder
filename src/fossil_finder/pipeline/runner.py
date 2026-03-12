@@ -24,11 +24,15 @@ def _json_safe(obj):
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 from fossil_finder.pipeline.steps import (
     step_aggregate,
+    step_conservation_analysis,
     step_deduplicate,
     step_enrichment_analysis,
     step_extract_regions,
     step_family_analysis,
     step_load_and_filter,
+    step_multiplicity_analysis,
+    step_positional_analysis,
+    step_quality_tiers,
     step_repeatmasker_overlap,
     step_strand_analysis,
 )
@@ -44,6 +48,10 @@ class PipelineResult:
     family_stats: dict | None = None
     enrichment: dict = field(default_factory=dict)
     rm_overlap: dict | None = None
+    tier_summary: pd.DataFrame | None = None
+    positional: dict | None = None
+    multiplicity: dict | None = None
+    conservation: dict | None = None
 
     def summary(self) -> dict:
         """Generate a summary dict of key metrics."""
@@ -51,6 +59,9 @@ class PipelineResult:
 
         if self.blast_hits is not None:
             s["total_blast_hits"] = len(self.blast_hits)
+            if "tier" in self.blast_hits.columns:
+                tier_counts = self.blast_hits["tier"].value_counts().to_dict()
+                s["tier_counts"] = {k: int(v) for k, v in tier_counts.items()}
 
         if self.gene_stats is not None:
             s["n_genes_analyzed"] = len(self.gene_stats)
@@ -70,6 +81,14 @@ class PipelineResult:
         if self.rm_overlap and "rm_stats" in self.rm_overlap:
             s["known_hits"] = self.rm_overlap["rm_stats"].get("known_hits", 0)
             s["novel_hits"] = self.rm_overlap["rm_stats"].get("novel_hits", 0)
+
+        if self.positional and "end_bias" in self.positional:
+            s["end_bias_ratio"] = self.positional["end_bias"].get("end_ratio", 0.0)
+
+        if self.conservation and "correlation" in self.conservation:
+            corr = self.conservation["correlation"]
+            if corr:
+                s["pident_phylop_rho"] = corr.get("rho", 0.0)
 
         s["n_gene_sets_tested"] = len(self.enrichment)
 
@@ -137,6 +156,8 @@ class PipelineRunner:
         te_metadata: dict[str, dict] | None = None,
         repeatmasker_path: str | Path | None = None,
         query_regions: pd.DataFrame | None = None,
+        phylop_bigwig: str | Path | None = None,
+        bigwig_tool: str | Path | None = None,
     ) -> PipelineResult:
         """Run full analysis on BLAST results.
 
@@ -150,6 +171,8 @@ class PipelineRunner:
             te_metadata: TE ID -> metadata mapping for class distribution.
             repeatmasker_path: Path to RepeatMasker .out file.
             query_regions: DataFrame for RM overlap (region_id, chrom, start, end).
+            phylop_bigwig: Path to phyloP bigWig file for conservation scoring.
+            bigwig_tool: Path to bigWigAverageOverBed binary.
 
         Returns:
             PipelineResult with all analysis outputs.
@@ -163,13 +186,17 @@ class PipelineRunner:
             min_pident=min_pident,
             min_length=min_length,
         )
-        result.blast_hits = df
 
-        # Step 2: Aggregate by gene
+        # Step 2: Quality tiers and edit stats
+        df, tier_summary = step_quality_tiers(df)
+        result.blast_hits = df
+        result.tier_summary = tier_summary
+
+        # Step 3: Aggregate by gene
         gene_stats = step_aggregate(df, query_to_gene)
         result.gene_stats = gene_stats
 
-        # Step 3: Strand analysis (needs gene_id column)
+        # Step 4: Strand analysis (needs gene_id column)
         if not df.empty:
             work = df.copy()
             work["gene_id"] = work["qseqid"].map(query_to_gene)
@@ -178,10 +205,10 @@ class PipelineRunner:
         else:
             result.strand_bias = step_strand_analysis(df)
 
-        # Step 4: TE family analysis
+        # Step 5: TE family analysis
         result.family_stats = step_family_analysis(df, te_metadata=te_metadata)
 
-        # Step 5: Enrichment testing (per gene set)
+        # Step 6: Enrichment testing (per gene set)
         if gene_sets and len(gene_stats) > 0:
             te_positive = set(
                 gene_stats[gene_stats["hit_count"] > 0].index
@@ -193,13 +220,30 @@ class PipelineRunner:
                     gene_densities=gene_stats["density"],
                 )
 
-        # Step 6: RepeatMasker overlap (optional)
+        # Step 7: RepeatMasker overlap (optional)
         if repeatmasker_path and query_regions is not None:
             result.rm_overlap = step_repeatmasker_overlap(
                 blast_hits=df,
                 repeatmasker_path=repeatmasker_path,
                 query_regions=query_regions,
             )
+
+        # Step 8: Positional analysis
+        if not df.empty:
+            result.positional = step_positional_analysis(df)
+
+        # Step 9: Multiplicity analysis
+        if not df.empty:
+            result.multiplicity = step_multiplicity_analysis(df, query_to_gene)
+
+        # Step 10: Conservation analysis (optional)
+        if phylop_bigwig and bigwig_tool and query_regions is not None:
+            try:
+                result.conservation = step_conservation_analysis(
+                    df, query_regions, phylop_bigwig, bigwig_tool,
+                )
+            except (FileNotFoundError, RuntimeError):
+                pass  # Conservation is optional — skip if tools missing
 
         # ── Save all outputs ──────────────────────────────────
         self._save_results(result)
