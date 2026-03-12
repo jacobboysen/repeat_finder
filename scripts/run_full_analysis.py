@@ -1,15 +1,29 @@
 #!/usr/bin/env python3
-"""Run all 7 analysis workstreams on dmel BLAST results.
+"""DEPRECATED — Use the fossil_finder package instead.
 
+All workstream logic has been ported to src/fossil_finder/:
+  - Analysis modules: fossil_finder.analysis.*
+  - Pipeline runner:  fossil_finder.pipeline.runner.PipelineRunner
+  - Config:           fossil_finder.config.schema.GenomeConfig
+
+Example usage with the package:
+    from fossil_finder.config.schema import load_genome_config
+    from fossil_finder.pipeline.runner import PipelineRunner
+
+    config = load_genome_config("config/genomes/dmel_r6.66.yaml")
+    runner = PipelineRunner(config, output_dir="results/")
+    regions = runner.extract(feature_type="three_prime_UTR")
+    blast_out = runner.blast(query="results/regions.fa", database="te_db")
+    result = runner.analyze(blast_results=blast_out, query_to_gene=q2g)
+
+This script is kept for reference only. It may be removed in a future release.
+
+---
+
+Original description:
+Run all 7 analysis workstreams on dmel BLAST results.
 Grain of salt: evalue=10, word_size=7, dust=no — very permissive params.
 98% of genes show TE hits. Quality tiers are critical for interpretation.
-
-Execution order per ANALYSIS_ARCHITECTURE.md:
-  WS1 → (WS3, WS5, WS7 parallel) → WS4 → Report
-  (WS6 conservation and WS2 motifs deferred — need external data)
-
-Usage:
-    python scripts/run_full_analysis.py
 """
 
 import json
