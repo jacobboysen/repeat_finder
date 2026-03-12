@@ -36,6 +36,9 @@ wheels/
 # Claude
 .claude/
 
+# Worktrees
+.worktrees/
+
 # Data and results (downloaded/generated)
 data/references/
 data/blastdb/
