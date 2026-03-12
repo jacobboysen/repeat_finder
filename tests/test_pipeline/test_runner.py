@@ -39,6 +39,10 @@ class TestPipelineResult:
         assert result.enrichment == {}
         assert result.rm_overlap is None
         assert result.blast_hits is None
+        assert result.tier_summary is None
+        assert result.positional is None
+        assert result.multiplicity is None
+        assert result.conservation is None
 
     def test_summary_dict(self):
         result = PipelineResult()
@@ -178,3 +182,52 @@ class TestPipelineRunner:
         assert isinstance(result2, PipelineResult)
         assert result2.gene_stats is not None
         assert len(result1.gene_stats) == len(result2.gene_stats)
+
+    def test_analyze_produces_tier_summary(
+        self, pipeline_config, mini_blast_results, tmp_path
+    ):
+        runner = PipelineRunner(
+            config=pipeline_config,
+            output_dir=tmp_path / "output",
+        )
+        result = runner.analyze(
+            blast_results=mini_blast_results,
+            query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
+                           "gene3_utr": "gene3"},
+        )
+        assert result.tier_summary is not None
+        assert isinstance(result.tier_summary, pd.DataFrame)
+        assert "n_hits" in result.tier_summary.columns
+
+    def test_analyze_produces_positional(
+        self, pipeline_config, mini_blast_results, tmp_path
+    ):
+        runner = PipelineRunner(
+            config=pipeline_config,
+            output_dir=tmp_path / "output",
+        )
+        result = runner.analyze(
+            blast_results=mini_blast_results,
+            query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
+                           "gene3_utr": "gene3"},
+        )
+        assert result.positional is not None
+        assert "utr_profile" in result.positional
+        assert "te_profile" in result.positional
+        assert "end_bias" in result.positional
+
+    def test_analyze_produces_multiplicity(
+        self, pipeline_config, mini_blast_results, tmp_path
+    ):
+        runner = PipelineRunner(
+            config=pipeline_config,
+            output_dir=tmp_path / "output",
+        )
+        result = runner.analyze(
+            blast_results=mini_blast_results,
+            query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
+                           "gene3_utr": "gene3"},
+        )
+        assert result.multiplicity is not None
+        assert "multiplicity" in result.multiplicity
+        assert "te_breadth" in result.multiplicity

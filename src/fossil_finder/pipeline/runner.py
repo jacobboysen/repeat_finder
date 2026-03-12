@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from fossil_finder.blast.runner import BlastRunner
 from fossil_finder.config.schema import GenomeConfig
 
 
@@ -144,6 +145,28 @@ class PipelineRunner:
             force=force,
             base_dir=self._base_dir,
         )
+
+    def blast(
+        self,
+        query: str | Path,
+        database: str | Path,
+        output: str | Path | None = None,
+    ) -> Path:
+        """Run BLAST search using the pipeline's BlastSpec configuration.
+
+        Args:
+            query: Path to query FASTA file.
+            database: Path to BLAST database (without extension).
+            output: Path for results TSV. Defaults to
+                ``self.output_dir / "blast_results.tsv"``.
+
+        Returns:
+            Path to the BLAST results file.
+        """
+        if output is None:
+            output = self.output_dir / "blast_results.tsv"
+        runner = BlastRunner(self.config.blast)
+        return runner.run(query, database, output)
 
     def analyze(
         self,
@@ -311,6 +334,66 @@ class PipelineRunner:
                     data.to_csv(
                         out / f"rm_{key}_hits.tsv", sep="\t", index=False,
                     )
+
+        # Tier summary
+        if result.tier_summary is not None and not result.tier_summary.empty:
+            result.tier_summary.to_csv(
+                out / "tier_summary.tsv", sep="\t", index=False,
+            )
+
+        # Positional analysis
+        if result.positional:
+            utr = result.positional.get("utr_profile")
+            if utr is not None and isinstance(utr, pd.DataFrame) and not utr.empty:
+                utr.to_csv(out / "utr_profile.tsv", sep="\t", index=False)
+            te = result.positional.get("te_profile")
+            if te is not None and isinstance(te, pd.DataFrame) and not te.empty:
+                te.to_csv(out / "te_profile.tsv", sep="\t", index=False)
+            end_bias = result.positional.get("end_bias")
+            if end_bias:
+                with open(out / "end_bias.json", "w") as f:
+                    json.dump(end_bias, f, indent=2, default=_json_safe)
+
+        # Multiplicity analysis
+        if result.multiplicity:
+            te_breadth = result.multiplicity.get("te_breadth")
+            if (
+                te_breadth is not None
+                and isinstance(te_breadth, pd.DataFrame)
+                and not te_breadth.empty
+            ):
+                te_breadth.to_csv(
+                    out / "te_breadth.tsv", sep="\t", index=False,
+                )
+            mult = result.multiplicity.get("multiplicity")
+            if mult:
+                with open(out / "multiplicity.json", "w") as f:
+                    json.dump(mult, f, indent=2, default=_json_safe)
+
+        # Conservation analysis
+        if result.conservation:
+            scored_df = result.conservation.get("scored_df")
+            if (
+                scored_df is not None
+                and isinstance(scored_df, pd.DataFrame)
+                and not scored_df.empty
+            ):
+                scored_df.to_csv(
+                    out / "phylop_by_hit.tsv", sep="\t", index=False,
+                )
+            by_tier = result.conservation.get("by_tier")
+            if (
+                by_tier is not None
+                and isinstance(by_tier, pd.DataFrame)
+                and not by_tier.empty
+            ):
+                by_tier.to_csv(
+                    out / "phylop_by_quality.tsv", sep="\t", index=False,
+                )
+            corr = result.conservation.get("correlation")
+            if corr:
+                with open(out / "quality_paradox_stats.json", "w") as f:
+                    json.dump(corr, f, indent=2, default=_json_safe)
 
         # Summary (always last — references other files)
         summary = result.summary()
