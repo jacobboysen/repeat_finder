@@ -21,7 +21,7 @@ set -euo pipefail
 # Activate the conda env that has lightning-sdk + torch + transformers
 source activate te-contrastive 2>/dev/null || conda activate te-contrastive 2>/dev/null || true
 
-STUDIO_NAME="ntv3-te-fossils"
+STUDIO_NAME="comprehensive-violet-7z81"
 TEAMSPACE="default"          # change to your teamspace name
 MACHINE="A10G"               # A10G (24GB, Pro) or A100 (Teams plan)
 REMOTE_DIR="/teamspace/studios/this_studio"

@@ -4,7 +4,7 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - python=3.11
+  - python=3.13
   - numpy>=1.24
   - pandas>=2.0
   - biopython>=1.82
