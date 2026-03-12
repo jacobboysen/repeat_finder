@@ -1,4 +1,195 @@
-# Snakefile
+"""TE Fossil Finder — Snakemake Workflow.
 
-# This is a placeholder for the Snakemake workflow definition.
-# Define your rules and workflow steps here.
+Usage:
+    snakemake --cores 4 --config genome_config=path/to/config.yaml output_dir=results/
+    snakemake --cores 8 --config genome_configs='["dmel.yaml","dsim.yaml"]' output_dir=results/
+
+Config keys:
+    genome_config:  Path to single GenomeConfig YAML (required unless genome_configs)
+    genome_configs: JSON list of GenomeConfig YAML paths
+    output_dir:     Output directory (default: "output")
+    base_dir:       Base directory for resolving relative paths in config
+    feature_type:   GFF3 feature type to extract (default: "three_prime_UTR")
+    max_evalue:     E-value filter (optional)
+    min_pident:     Percent identity filter (optional)
+    min_length:     Alignment length filter (optional)
+"""
+
+import json
+from pathlib import Path
+
+from fossil_finder.config.schema import load_genome_config
+
+
+# ── Config ───────────────────────────────────────────────────────────────────
+
+OUTPUT_DIR = Path(config.get("output_dir", "output"))
+BASE_DIR = Path(config["base_dir"]) if config.get("base_dir") else None
+FEATURE_TYPE = config.get("feature_type", "three_prime_UTR")
+
+# Load genome configs — single or multi
+_config_paths: list[str] = []
+if "genome_configs" in config:
+    _config_paths = json.loads(config["genome_configs"]) if isinstance(
+        config["genome_configs"], str
+    ) else list(config["genome_configs"])
+elif "genome_config" in config:
+    _config_paths = [config["genome_config"]]
+else:
+    raise ValueError(
+        "Must provide --config genome_config=path.yaml or "
+        "genome_configs='[\"a.yaml\",\"b.yaml\"]'"
+    )
+
+GENOMES: dict = {}              # assembly -> GenomeConfig
+GENOME_CONFIG_PATHS: dict = {}  # assembly -> original YAML path
+
+for _path in _config_paths:
+    _cfg = load_genome_config(_path)
+    _key = _cfg.genome.assembly
+    GENOMES[_key] = _cfg
+    GENOME_CONFIG_PATHS[_key] = str(_path)
+
+
+def resolve_path(p, cfg_base_dir=None):
+    """Resolve a path, optionally relative to BASE_DIR or a config-specific base."""
+    path = Path(p)
+    if not path.is_absolute():
+        if cfg_base_dir:
+            path = Path(cfg_base_dir) / path
+        elif BASE_DIR:
+            path = BASE_DIR / path
+    return str(path)
+
+
+def get_genome_fasta(wildcards):
+    cfg = GENOMES[wildcards.genome]
+    return resolve_path(cfg.source.genome_fasta)
+
+
+def get_annotation_gff(wildcards):
+    cfg = GENOMES[wildcards.genome]
+    return resolve_path(cfg.source.annotation_gff)
+
+
+def get_te_fasta(wildcards):
+    cfg = GENOMES[wildcards.genome]
+    source = cfg.source.te_consensus or cfg.source.te_instances
+    if not source:
+        raise ValueError(f"No TE source for genome {wildcards.genome}")
+    return resolve_path(source)
+
+
+def resolve_rm_input(wildcards):
+    """Return pre-existing RM .out path or the run_repeatmasker rule output."""
+    cfg = GENOMES[wildcards.genome]
+    rm_path = cfg.source.repeatmasker_out
+    if rm_path:
+        resolved = Path(resolve_path(rm_path))
+        if resolved.exists():
+            return str(resolved)
+    # Fall through: request the deterministic output of run_repeatmasker rule
+    return str(OUTPUT_DIR / wildcards.genome / "repeatmasker" / "rm_output.out")
+
+
+# ── Targets ──────────────────────────────────────────────────────────────────
+
+rule all:
+    input:
+        expand(str(OUTPUT_DIR / "{genome}" / "summary.json"), genome=GENOMES.keys()),
+
+
+# ── Rules ────────────────────────────────────────────────────────────────────
+
+rule extract_regions:
+    input:
+        genome=get_genome_fasta,
+        annotation=get_annotation_gff,
+    output:
+        fasta=str(OUTPUT_DIR / "{genome}" / "regions.fa"),
+        metadata=str(OUTPUT_DIR / "{genome}" / "regions.tsv"),
+    params:
+        feature_type=FEATURE_TYPE,
+    run:
+        from fossil_finder.pipeline.steps import step_extract_regions
+        cfg = GENOMES[wildcards.genome]
+        step_extract_regions(
+            config=cfg,
+            feature_type=params.feature_type,
+            fasta_out=output.fasta,
+            metadata_out=output.metadata,
+            base_dir=BASE_DIR,
+        )
+
+
+rule make_blast_db:
+    input:
+        fasta=get_te_fasta,
+    output:
+        nhr=str(OUTPUT_DIR / "{genome}" / "blastdb" / "te_db.nhr"),
+        nin=str(OUTPUT_DIR / "{genome}" / "blastdb" / "te_db.nin"),
+        nsq=str(OUTPUT_DIR / "{genome}" / "blastdb" / "te_db.nsq"),
+    params:
+        db_prefix=lambda wc: str(OUTPUT_DIR / wc.genome / "blastdb" / "te_db"),
+    shell:
+        """
+        mkdir -p $(dirname {params.db_prefix})
+        makeblastdb \
+            -in {input.fasta} \
+            -dbtype nucl \
+            -out {params.db_prefix} \
+            -parse_seqids
+        """
+
+
+rule run_blast:
+    input:
+        query=str(OUTPUT_DIR / "{genome}" / "regions.fa"),
+        db_nhr=str(OUTPUT_DIR / "{genome}" / "blastdb" / "te_db.nhr"),
+    output:
+        tsv=str(OUTPUT_DIR / "{genome}" / "blast_results.tsv"),
+    params:
+        db_prefix=lambda wc: str(OUTPUT_DIR / wc.genome / "blastdb" / "te_db"),
+    threads: 4
+    run:
+        from fossil_finder.blast.runner import BlastRunner
+        cfg = GENOMES[wildcards.genome]
+        runner = BlastRunner(cfg.blast)
+        runner.run(
+            query=input.query,
+            database=params.db_prefix,
+            output=output.tsv,
+        )
+
+
+rule run_repeatmasker:
+    input:
+        genome=get_genome_fasta,
+    output:
+        out=str(OUTPUT_DIR / "{genome}" / "repeatmasker" / "rm_output.out"),
+    run:
+        import shutil
+        from fossil_finder.repeatmasker.runner import RepeatMaskerRunner
+        cfg = GENOMES[wildcards.genome]
+        rm_runner = RepeatMaskerRunner(cfg.repeatmasker)
+        rm_out_dir = Path(output.out).parent
+        actual_out = rm_runner.run(
+            input_fasta=input.genome,
+            output_dir=str(rm_out_dir),
+        )
+        # RM names output after input fasta — move to deterministic path
+        if str(actual_out) != output.out:
+            shutil.move(str(actual_out), output.out)
+
+
+rule analyze:
+    input:
+        blast_results=str(OUTPUT_DIR / "{genome}" / "blast_results.tsv"),
+        regions_metadata=str(OUTPUT_DIR / "{genome}" / "regions.tsv"),
+        rm_out=resolve_rm_input,
+    output:
+        summary=str(OUTPUT_DIR / "{genome}" / "summary.json"),
+    params:
+        genome_config=lambda wc: GENOME_CONFIG_PATHS[wc.genome],
+    script:
+        "scripts/run_analysis.py"
