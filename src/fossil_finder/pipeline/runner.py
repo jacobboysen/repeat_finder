@@ -13,6 +13,7 @@ import pandas as pd
 
 from fossil_finder.blast.runner import BlastRunner
 from fossil_finder.config.schema import GenomeConfig
+from fossil_finder.repeatmasker.runner import RepeatMaskerRunner
 
 
 def _json_safe(obj):
@@ -174,6 +175,29 @@ class PipelineRunner:
         runner = BlastRunner(self.config.blast)
         return runner.run(query, database, output)
 
+    def repeatmasker(
+        self,
+        input_fasta: str | Path,
+        output_dir: str | Path | None = None,
+    ) -> Path:
+        """Run RepeatMasker on input sequences.
+
+        Produces a .out annotation file that can be passed to
+        ``analyze(repeatmasker_path=...)`` for overlap classification.
+
+        Args:
+            input_fasta: Path to genome or region FASTA file.
+            output_dir: Directory for RM output files. Defaults to
+                ``self.output_dir / "repeatmasker"``.
+
+        Returns:
+            Path to the RepeatMasker .out file.
+        """
+        if output_dir is None:
+            output_dir = self.output_dir / "repeatmasker"
+        runner = RepeatMaskerRunner(self.config.repeatmasker)
+        return runner.run(input_fasta, output_dir)
+
     def analyze(
         self,
         blast_results: str | Path,
@@ -208,6 +232,14 @@ class PipelineRunner:
             PipelineResult with all analysis outputs.
         """
         result = PipelineResult()
+
+        # Fall back to config's pre-existing RM path
+        if repeatmasker_path is None and self.config.source.repeatmasker_out:
+            rm_candidate = Path(self.config.source.repeatmasker_out)
+            if self._base_dir and not rm_candidate.is_absolute():
+                rm_candidate = self._base_dir / rm_candidate
+            if rm_candidate.exists():
+                repeatmasker_path = rm_candidate
 
         # Step 1: Load and filter
         df = step_load_and_filter(

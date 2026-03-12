@@ -319,3 +319,70 @@ class TestPipelineRunner:
             assert result == expected_out
             call_args = mock_rm.call_args
             assert call_args[0][1] == custom_dir
+
+    def test_analyze_falls_back_to_config_rm_path(
+        self, test_data_dir, mini_blast_results, mini_repeatmasker, tmp_path
+    ):
+        """analyze() uses config's repeatmasker_out when no explicit path given."""
+        from fossil_finder.config.schema import GenomeConfig
+
+        config = GenomeConfig(
+            genome={
+                "species": "Testus synthetica",
+                "assembly": "test_v1",
+                "chromosomes": ["chr1", "chr2"],
+            },
+            source={
+                "adapter": "custom",
+                "genome_fasta": str(test_data_dir / "mini_genome.fasta"),
+                "annotation_gff": str(test_data_dir / "mini_annotation.gff3"),
+                "te_consensus": str(test_data_dir / "mini_tes.fasta"),
+                "repeatmasker_out": str(mini_repeatmasker),
+            },
+            blast={"word_size": 7, "dust": False},
+        )
+        runner = PipelineRunner(config=config, output_dir=tmp_path / "output")
+        query_regions = pd.DataFrame({
+            "region_id": ["gene1_utr", "gene2_utr", "gene3_utr"],
+            "chrom": ["chr1", "chr1", "chr2"],
+            "start": [281, 350, 381],
+            "end": [300, 369, 400],
+        })
+        result = runner.analyze(
+            blast_results=mini_blast_results,
+            query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
+                           "gene3_utr": "gene3"},
+            query_regions=query_regions,
+        )
+        # RM overlap should have run via the config fallback
+        assert result.rm_overlap is not None
+
+    def test_analyze_no_rm_when_config_path_missing(
+        self, test_data_dir, mini_blast_results, tmp_path
+    ):
+        """analyze() skips RM when config path doesn't exist on disk."""
+        from fossil_finder.config.schema import GenomeConfig
+
+        config = GenomeConfig(
+            genome={
+                "species": "Testus synthetica",
+                "assembly": "test_v1",
+                "chromosomes": ["chr1", "chr2"],
+            },
+            source={
+                "adapter": "custom",
+                "genome_fasta": str(test_data_dir / "mini_genome.fasta"),
+                "annotation_gff": str(test_data_dir / "mini_annotation.gff3"),
+                "te_consensus": str(test_data_dir / "mini_tes.fasta"),
+                "repeatmasker_out": "/nonexistent/fake.out",
+            },
+            blast={"word_size": 7, "dust": False},
+        )
+        runner = PipelineRunner(config=config, output_dir=tmp_path / "output")
+        result = runner.analyze(
+            blast_results=mini_blast_results,
+            query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
+                           "gene3_utr": "gene3"},
+        )
+        # No RM overlap — file doesn't exist, fallback was skipped
+        assert result.rm_overlap is None
