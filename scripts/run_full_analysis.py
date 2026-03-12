@@ -44,6 +44,7 @@ GENE_SETS = {
 DATA_DIR = PROJECT_ROOT / "data"
 GFF_PATH = DATA_DIR / "references" / "dmel-all-r6.66.gff"
 TE_FASTA = DATA_DIR / "references" / "dmel_te_flybase.fasta"
+TE_CONSENSUS = DATA_DIR / "references" / "dmel_te_consensus.fasta"
 
 # Quality tier thresholds
 STRICT = {"pident": 85, "length": 100}
@@ -101,6 +102,33 @@ def build_query_to_gene(regions_path, t2g):
     return q2g
 
 
+def build_consensus_class_map():
+    """Build family_name → TE class from consensus FASTA headers.
+
+    Consensus headers use RepBase format: >family_name#class/subclass
+    e.g. >gypsy#LTR/Gypsy, >jockey#LINE/Jockey, >hobo#DNA/hAT
+    Returns {lowercase_name: top_level_class} e.g. {"gypsy": "LTR", "hobo": "DNA"}
+    """
+    class_map = {}
+    if not TE_CONSENSUS.exists():
+        print(f"  WARNING: Consensus FASTA not found at {TE_CONSENSUS}")
+        return class_map
+    with open(TE_CONSENSUS) as f:
+        for line in f:
+            if not line.startswith(">"):
+                continue
+            header = line[1:].strip()
+            if "#" not in header:
+                continue
+            name, classification = header.split("#", 1)
+            top_class = classification.split("/")[0]
+            # Normalize RC (rolling circle) → Helitron
+            if top_class == "RC":
+                top_class = "Helitron"
+            class_map[name.lower()] = top_class
+    return class_map
+
+
 def build_te_name_map():
     """Build FBti → family name mapping from TE FASTA headers."""
     te_map = {}
@@ -119,9 +147,50 @@ def build_te_name_map():
     return te_map
 
 
-def infer_te_class_from_name(te_name):
-    """Classify TE by family name patterns."""
-    tn = te_name.lower()
+def _strip_instance_suffix(name):
+    """Strip FlyBase instance suffix from TE family name.
+
+    FlyBase uses: family{}instance e.g. 'gypsy{}123', '1360{}Eph[1520]'
+    We strip everything from '{}' onward to get the base family name.
+    """
+    idx = name.find("{}")
+    return name[:idx] if idx >= 0 else name
+
+
+def infer_te_class_from_name(te_name, consensus_map=None):
+    """Classify TE using consensus FASTA classes, with pattern fallback.
+
+    Strategy:
+    1. Strip {}N instance suffix from name
+    2. Exact match against consensus map (case-insensitive)
+    3. Try name + "-element" suffix (FlyBase uses "Doc2" but consensus has "Doc2-element")
+    4. Fall back to keyword pattern matching
+    """
+    base_name = _strip_instance_suffix(te_name)
+    base_lower = base_name.lower()
+
+    if consensus_map:
+        # Exact match
+        if base_lower in consensus_map:
+            return consensus_map[base_lower]
+        # Try with -element suffix
+        if base_lower + "-element" in consensus_map:
+            return consensus_map[base_lower + "-element"]
+
+    # Known Drosophila families not in consensus FASTA
+    # (verified against FlyBase/RepBase annotations)
+    FLYBASE_OVERRIDES = {
+        "h": "DNA",            # HB-related hAT superfamily
+        "het-tag": "LINE",     # telomeric, HeT-A-related
+        "antonia": "LTR",      # LTR/Gypsy
+        "ninja-dsim-like": "LTR",  # LTR/Gypsy (ninja family)
+        "y": "LINE",           # telomeric Y-element
+    }
+    if base_lower in FLYBASE_OVERRIDES:
+        return FLYBASE_OVERRIDES[base_lower]
+
+    # Pattern-based fallback
+    tn = base_lower
     if any(k in tn for k in ["gypsy", "copia", "bel", "pao", "mdg", "tirant",
                                "blood", "idefix", "zam", "tabor", "springer",
                                "invader", "opus", "roo", "micropia", "17.6",
@@ -138,7 +207,7 @@ def infer_te_class_from_name(te_name):
                                  "s_element", "s-element", "1360", "tc3",
                                  "looper", "dna"]):
         return "DNA"
-    elif any(k in tn for k in ["helitron", "dine"]):
+    elif any(k in tn for k in ["helitron", "dine", "ine-1"]):
         return "Helitron"
     elif any(k in tn for k in ["sine", "alu"]):
         return "SINE"
@@ -396,7 +465,7 @@ def run_ws1(df, utr_type, out_dir, q2g, te_names):
 
 # ── WS3: TE Family Enrichment ────────────────────────────────────────────────
 
-def run_ws3(df, gene_sets_loaded, out_dir, te_names):
+def run_ws3(df, gene_sets_loaded, out_dir, te_names, consensus_map=None):
     """WS3: TE family ranking, gene-set enrichment, class distribution."""
     print(f"\n{'='*60}")
     print(f"WS3: TE Family Enrichment")
@@ -487,10 +556,10 @@ def run_ws3(df, gene_sets_loaded, out_dir, te_names):
                         print(f"    {row['te_id']}: {row['fold_enrichment']:.1f}x "
                               f"(n={row['count_in_set']:.0f})")
 
-    # 3.3 TE class distribution (use TE name lookup from FASTA headers)
+    # 3.3 TE class distribution (use consensus FASTA for authoritative classification)
     def get_te_class(te_id):
         name = te_names.get(te_id, te_id)
-        return infer_te_class_from_name(name)
+        return infer_te_class_from_name(name, consensus_map)
 
     df["te_class"] = df["sseqid"].map(get_te_class)
     df["te_name"] = df["sseqid"].map(lambda x: te_names.get(x, x))
@@ -913,6 +982,10 @@ def main():
     t2g = build_transcript_to_gene_map()
     print(f"  {len(t2g):,} transcript→gene mappings in {time.time()-t0:.1f}s")
 
+    print("Building TE consensus class map...")
+    consensus_map = build_consensus_class_map()
+    print(f"  {len(consensus_map):,} consensus families with class annotations")
+
     print("Building TE name mapping from FASTA headers...")
     te_names = build_te_name_map()
     print(f"  {len(te_names):,} TE ID→name mappings")
@@ -923,7 +996,7 @@ def main():
         te_lookup_rows.append({
             "te_id": te_id,
             "te_name": name,
-            "te_class": infer_te_class_from_name(name),
+            "te_class": infer_te_class_from_name(name, consensus_map),
         })
     if te_lookup_rows:
         te_lookup_df = pd.DataFrame(te_lookup_rows)
@@ -957,7 +1030,7 @@ def main():
 
         # Run workstreams
         df = run_ws1(df, utr_type, out_dir, q2g, te_names)
-        df = run_ws3(df, gene_sets_loaded, out_dir, te_names)
+        df = run_ws3(df, gene_sets_loaded, out_dir, te_names, consensus_map)
         run_ws5(df, out_dir)
         run_ws7(df, gene_sets_loaded, out_dir)
         run_ws4(df, out_dir)
