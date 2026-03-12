@@ -233,13 +233,23 @@ class PipelineRunner:
         """
         result = PipelineResult()
 
-        # Fall back to config's pre-existing RM path
+        # Resolve RepeatMasker .out: explicit arg > config path > run de novo
         if repeatmasker_path is None and self.config.source.repeatmasker_out:
             rm_candidate = Path(self.config.source.repeatmasker_out)
             if self._base_dir and not rm_candidate.is_absolute():
                 rm_candidate = self._base_dir / rm_candidate
             if rm_candidate.exists():
                 repeatmasker_path = rm_candidate
+
+        if repeatmasker_path is None:
+            try:
+                genome_fasta = Path(self.config.source.genome_fasta)
+                if self._base_dir and not genome_fasta.is_absolute():
+                    genome_fasta = self._base_dir / genome_fasta
+                if genome_fasta.exists():
+                    repeatmasker_path = self.repeatmasker(genome_fasta)
+            except (RuntimeError, FileNotFoundError):
+                pass  # RepeatMasker not installed — skip overlap step
 
         # Step 1: Load and filter
         df = step_load_and_filter(

@@ -357,10 +357,10 @@ class TestPipelineRunner:
         # RM overlap should have run via the config fallback
         assert result.rm_overlap is not None
 
-    def test_analyze_no_rm_when_config_path_missing(
+    def test_analyze_no_rm_when_not_installed(
         self, test_data_dir, mini_blast_results, tmp_path
     ):
-        """analyze() skips RM when config path doesn't exist on disk."""
+        """analyze() skips RM overlap when RM isn't installed and no .out exists."""
         from fossil_finder.config.schema import GenomeConfig
 
         config = GenomeConfig(
@@ -374,15 +374,58 @@ class TestPipelineRunner:
                 "genome_fasta": str(test_data_dir / "mini_genome.fasta"),
                 "annotation_gff": str(test_data_dir / "mini_annotation.gff3"),
                 "te_consensus": str(test_data_dir / "mini_tes.fasta"),
-                "repeatmasker_out": "/nonexistent/fake.out",
             },
             blast={"word_size": 7, "dust": False},
         )
         runner = PipelineRunner(config=config, output_dir=tmp_path / "output")
-        result = runner.analyze(
-            blast_results=mini_blast_results,
-            query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
-                           "gene3_utr": "gene3"},
-        )
-        # No RM overlap — file doesn't exist, fallback was skipped
+        # De novo RM will fail (not installed) — should skip gracefully
+        with patch(
+            "fossil_finder.repeatmasker.runner.RepeatMaskerRunner.is_available",
+            return_value=False,
+        ):
+            result = runner.analyze(
+                blast_results=mini_blast_results,
+                query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
+                               "gene3_utr": "gene3"},
+            )
         assert result.rm_overlap is None
+
+    def test_analyze_runs_rm_de_novo(
+        self, test_data_dir, mini_blast_results, mini_repeatmasker, tmp_path
+    ):
+        """analyze() runs RM de novo when no .out path provided."""
+        from fossil_finder.config.schema import GenomeConfig
+
+        config = GenomeConfig(
+            genome={
+                "species": "Testus synthetica",
+                "assembly": "test_v1",
+                "chromosomes": ["chr1", "chr2"],
+            },
+            source={
+                "adapter": "custom",
+                "genome_fasta": str(test_data_dir / "mini_genome.fasta"),
+                "annotation_gff": str(test_data_dir / "mini_annotation.gff3"),
+                "te_consensus": str(test_data_dir / "mini_tes.fasta"),
+            },
+            blast={"word_size": 7, "dust": False},
+        )
+        runner = PipelineRunner(config=config, output_dir=tmp_path / "output")
+        query_regions = pd.DataFrame({
+            "region_id": ["gene1_utr", "gene2_utr", "gene3_utr"],
+            "chrom": ["chr1", "chr1", "chr2"],
+            "start": [281, 350, 381],
+            "end": [300, 369, 400],
+        })
+        # Mock the repeatmasker() call to return our fixture .out file
+        with patch.object(
+            runner, "repeatmasker", return_value=mini_repeatmasker,
+        ) as mock_rm:
+            result = runner.analyze(
+                blast_results=mini_blast_results,
+                query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
+                               "gene3_utr": "gene3"},
+                query_regions=query_regions,
+            )
+            mock_rm.assert_called_once()
+        assert result.rm_overlap is not None
