@@ -5,12 +5,23 @@ Returns a typed PipelineResult with all outputs.
 """
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
 
 from fossil_finder.config.schema import GenomeConfig
+
+
+def _json_safe(obj):
+    """Handle non-JSON-serializable floats (inf, nan)."""
+    if isinstance(obj, float):
+        if math.isinf(obj):
+            return "Infinity" if obj > 0 else "-Infinity"
+        if math.isnan(obj):
+            return "NaN"
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 from fossil_finder.pipeline.steps import (
     step_aggregate,
     step_deduplicate,
@@ -90,7 +101,7 @@ class PipelineRunner:
         self,
         feature_type: str = "three_prime_UTR",
         gene_ids: list[str] | None = None,
-        deduplicate: bool = False,
+        deduplicate: bool = True,
         force: bool = True,
     ) -> list[dict]:
         """Extract genomic regions for BLAST queries.
@@ -190,10 +201,74 @@ class PipelineRunner:
                 query_regions=query_regions,
             )
 
-        # Save summary
-        summary = result.summary()
-        summary_path = self.output_dir / "summary.json"
-        with open(summary_path, "w") as f:
-            json.dump(summary, f, indent=2)
+        # ── Save all outputs ──────────────────────────────────
+        self._save_results(result)
 
         return result
+
+    def _save_results(self, result: PipelineResult) -> None:
+        """Save all analysis outputs to flat files."""
+        out = self.output_dir
+
+        # BLAST hits (filtered)
+        if result.blast_hits is not None and not result.blast_hits.empty:
+            result.blast_hits.to_csv(
+                out / "blast_hits_filtered.tsv", sep="\t", index=False,
+            )
+
+        # Per-gene stats
+        if result.gene_stats is not None and not result.gene_stats.empty:
+            result.gene_stats.to_csv(
+                out / "gene_stats.tsv", sep="\t", index=True,
+            )
+
+        # Strand bias — mixed types: DataFrames + dict
+        if result.strand_bias:
+            strand_out = {}
+            for level in ("gene", "te_family"):
+                data = result.strand_bias.get(level)
+                if data is not None and isinstance(data, pd.DataFrame) and not data.empty:
+                    path = out / f"strand_bias_{level}.tsv"
+                    data.to_csv(path, sep="\t", index=True)
+                    strand_out[level] = str(path.name)
+            genome = result.strand_bias.get("genome")
+            if genome:
+                strand_out["genome"] = genome
+            with open(out / "strand_bias.json", "w") as f:
+                json.dump(strand_out, f, indent=2)
+
+        # TE family stats
+        if result.family_stats:
+            fs = result.family_stats.get("family_stats")
+            if fs is not None and isinstance(fs, pd.DataFrame) and not fs.empty:
+                fs.to_csv(out / "family_stats.tsv", sep="\t", index=True)
+            cd = result.family_stats.get("class_distribution")
+            if cd:
+                with open(out / "class_distribution.json", "w") as f:
+                    json.dump(cd, f, indent=2)
+
+        # Enrichment results
+        if result.enrichment:
+            with open(out / "enrichment.json", "w") as f:
+                json.dump(
+                    result.enrichment, f, indent=2,
+                    default=_json_safe,
+                )
+
+        # RepeatMasker overlap
+        if result.rm_overlap:
+            rm_stats = result.rm_overlap.get("rm_stats")
+            if rm_stats:
+                with open(out / "rm_overlap.json", "w") as f:
+                    json.dump(rm_stats, f, indent=2)
+            for key in ("known", "novel"):
+                data = result.rm_overlap.get(key)
+                if data is not None and isinstance(data, pd.DataFrame) and not data.empty:
+                    data.to_csv(
+                        out / f"rm_{key}_hits.tsv", sep="\t", index=False,
+                    )
+
+        # Summary (always last — references other files)
+        summary = result.summary()
+        with open(out / "summary.json", "w") as f:
+            json.dump(summary, f, indent=2)

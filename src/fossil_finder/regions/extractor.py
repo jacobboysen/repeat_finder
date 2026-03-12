@@ -27,13 +27,21 @@ class RegionExtractor:
        (e.g., 2kb upstream + 500bp downstream of gene/TSS starts)
     """
 
-    def __init__(self, config: GenomeConfig, base_dir: Path | None = None):
+    def __init__(
+        self,
+        config: GenomeConfig,
+        base_dir: Path | None = None,
+        feature_types: set[str] | None = None,
+    ):
         """Initialize with genome config.
 
         Args:
             config: Validated GenomeConfig.
             base_dir: Optional base directory for resolving relative paths
                 in the config. If None, paths are used as-is.
+            feature_types: If provided, only load these GFF3 feature types
+                (plus 'mRNA' for gene mapping). Dramatically reduces memory
+                for large GFF3 files. If None, loads all features.
         """
         self.config = config
         self._base_dir = base_dir
@@ -49,9 +57,13 @@ class RegionExtractor:
                 if k in config.genome.chromosomes
             }
 
-        # Load annotation
+        # Load annotation (with optional type filter for memory efficiency)
         gff_path = self._resolve(config.source.annotation_gff)
-        self.features = parse_gff3(gff_path)
+        gff_filter = None
+        if feature_types is not None:
+            # Always include mRNA for gene→transcript mapping
+            gff_filter = feature_types | {"mRNA"}
+        self.features = parse_gff3(gff_path, feature_types=gff_filter)
 
     def _resolve(self, path_str: str) -> Path:
         """Resolve a path, optionally relative to base_dir."""
@@ -97,9 +109,16 @@ class RegionExtractor:
             )
 
             # Filter by gene if requested
+            # Handle comma-separated Parent values (FlyBase GFF3)
             if gene_filter:
-                gene_id = mrna_to_gene.get(parent_id, parent_id)
-                if gene_id not in gene_filter:
+                parents = [p.strip() for p in parent_id.split(",")]
+                matched_gene = None
+                for p in parents:
+                    g = mrna_to_gene.get(p, p)
+                    if g in gene_filter:
+                        matched_gene = g
+                        break
+                if matched_gene is None:
                     continue
 
             seq = extract_subsequence(

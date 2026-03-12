@@ -62,7 +62,10 @@ def step_extract_regions(
     if not force and fasta_out.exists() and metadata_out.exists():
         return []  # Skip — files already exist
 
-    extractor = RegionExtractor(config, base_dir=base_dir)
+    extractor = RegionExtractor(
+        config, base_dir=base_dir,
+        feature_types={feature_type},
+    )
     regions = extractor.extract_features(
         feature_type, gene_ids=gene_ids, deduplicate=deduplicate,
     )

@@ -81,6 +81,17 @@ class TestAggregateByGene:
         assert result.loc["geneA", "n_te_families"] == 3  # TE1, TE2, TE3
         assert result.loc["geneB", "n_te_families"] == 1
 
+    def test_includes_genes_with_zero_hits(self, blast_hits, query_to_gene):
+        """Genes in query_to_gene without hits still appear with 0 counts."""
+        extended_map = {**query_to_gene, "tr_unmapped": "geneC"}
+        result = aggregate_by_gene(blast_hits, extended_map)
+        assert len(result) == 3
+        assert "geneC" in result.index
+        assert result.loc["geneC", "hit_count"] == 0
+        assert result.loc["geneC", "hit_bp"] == 0
+        assert result.loc["geneC", "query_len"] == 0
+        assert result.loc["geneC", "n_te_families"] == 0
+
 
 class TestComputeDensity:
     def test_density_calculation(self):

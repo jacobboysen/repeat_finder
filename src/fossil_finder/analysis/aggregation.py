@@ -52,6 +52,16 @@ def aggregate_by_gene(
         "n_te_families": grouped["sseqid"].nunique(),
     })
 
+    # Include genes with 0 hits — important for enrichment analysis
+    all_genes = sorted(set(query_to_gene.values()))
+    missing = set(all_genes) - set(result.index)
+    if missing:
+        zero_rows = pd.DataFrame(
+            0, index=sorted(missing),
+            columns=result.columns,
+        )
+        result = pd.concat([result, zero_rows])
+
     return result
 
 
