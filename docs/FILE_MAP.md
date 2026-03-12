@@ -581,6 +581,17 @@ python scripts/analyze_local_rna_structure.py --max-seqs 500 --max-length 2000
 
 ---
 
+## Workflows
+
+### Snakemake (`workflows/`)
+
+| File | Purpose |
+|------|---------|
+| `workflows/Snakefile` | Production 5-rule Snakemake workflow: extract_regions → make_blast_db → run_blast → run_repeatmasker (conditional) → analyze. Supports single and multi-genome via `{genome}` wildcard. |
+| `workflows/scripts/run_analysis.py` | Bridge script connecting Snakemake `script:` directive to `PipelineRunner.analyze()`. Also works standalone via argparse. Resolves mRNA→gene mapping from GFF3. |
+
+---
+
 ## Data Files
 
 ### External Annotations (`data/annotations/`)
