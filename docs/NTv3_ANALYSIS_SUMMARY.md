@@ -139,3 +139,25 @@ The candidate classification used in the scoring pipeline (exapted_fossil/young_
 | `data/references/dm6.phyloP27way.bw` | PhyloP 27-way conservation scores (UCSC) |
 | `scripts/score_te_fossils_ntv3.py` | NTv3 scoring pipeline |
 | `scripts/prepare_te_fossils_for_lm.py` | Dataset preparation pipeline |
+
+## Next Steps
+
+### 1. Score BLAST-only regions at scale (priority: high)
+2,735 regions have TE signal only from BLAST (invisible to RepeatMasker), but only 18 were scored because the pipeline sorts by te_bp_strict descending. Modify `score_te_fossils_ntv3.py` to accept a `--blast-only` flag or a custom region list that prioritizes these regions. This is the most direct test of the methodological claim that BLAST finds functional TE fossils that RM-based pipelines miss.
+
+### 2. Saturation mutagenesis on top candidates (priority: high)
+Run `--satmut` on the 145 conserved+functional regions to identify exactly which nucleotides within degraded TE fragments are load-bearing. The pipeline already supports this. Turns the ablation paradox correlation into a mechanistic result showing specific positions the model depends on.
+
+### 3. Case studies (priority: medium)
+Deep dive on the top exaptation candidates (eIF3f1, Unr, scyl, Not3). For each: identify the specific TE family and insertion coordinates, map satmut-identified critical positions, check for overlap with known TFBS motifs (from REDfly/JASPAR), and compare the TE-derived regulatory element to the consensus TE sequence to identify which parts have been retained vs degraded.
+
+### 4. Figures (priority: medium)
+Nothing is visualized yet. Key plots needed:
+- Ablation paradox: pident vs ablation_delta scatter, colored by conservation status
+- Conservation x function 2x2 matrix (bar chart or mosaic plot)
+- BLAST-only vs RM-confirmed comparison (paired distributions)
+- Top candidate profiles: per-position NTv3 signal overlaid with TE mask and phyloP
+- Quartile breakdown: ablation paradox effect by te_fraction quartile
+
+### 5. Experimental validation (priority: depends on scope)
+If targeting a paper: MPRA or CRISPRi on top candidates to validate that TE-derived sequences are necessary for regulatory activity in vivo. The 145 conserved+functional candidates are prioritized predictions. CG10465 (BLAST-only, KCTD family) would be particularly compelling as a novel candidate invisible to standard pipelines.

@@ -1,8 +1,36 @@
 # Repository File Map
 
-> **Last updated**: 2026-02-11
+> **Last updated**: 2026-03-11
 > **Purpose**: Track what each file contains and how the repo has evolved
 > **Maintenance**: Update this file when adding new scripts, data, or results
+
+## Current: fossil_finder Package & Full dmel Analysis (2026-03-11)
+
+**Status**: Pipeline operational, analysis architecture designed, first full run complete.
+
+Refactored flat scripts into installable `fossil_finder` package. Ran genome-wide 3'UTR + 5'UTR
+analysis at evalue=10 with revised BLAST params (word_size=7, dust=no).
+
+**New files**:
+| File | Purpose |
+|------|---------|
+| `src/fossil_finder/` | Installable Python package (config, IO, regions, BLAST, analysis, pipeline) |
+| `scripts/run_dmel_full_analysis.py` | Full dmel analysis runner (3'UTR + 5'UTR, evalue=10, 5 gene sets) |
+| `tests/smoke/test_dmel_pipeline.py` | Smoke test on real dmel data (5 germ plasm genes) |
+| `docs/ANALYSIS_ARCHITECTURE.md` | 7-workstream bio analysis design with dependency graph |
+| `docs/ANALYSIS_TOOLS_UPGRADE.md` | Third-party tools reference for future iterations |
+| `docs/PIPELINE_COMPARISON.md` | Legacy vs new pipeline parameter comparison and validation |
+| `results/dmel_3utr_e10/` | 3'UTR results: 21,661 regions, 7.5M hits, 13,375 genes (2.9 GB) |
+| `results/dmel_5utr_e10/` | 5'UTR results: 28,129 regions, 3.8M hits, 13,243 genes (1.2 GB) |
+
+**Analysis outputs per UTR type** (in `results/dmel_{3,5}utr_e10/`):
+- `blast_results.tsv`, `blast_hits_filtered.tsv` — raw and filtered BLAST hits
+- `gene_stats.tsv` — per-gene: hit_count, hit_bp, density, strand, TE diversity
+- `family_stats.tsv` — per-TE-family statistics
+- `strand_bias.json`, `strand_bias_gene.tsv`, `strand_bias_te_family.tsv`
+- `enrichment.json` — Fisher + Mann-Whitney per gene set
+- `regions.fa`, `regions.tsv` — deduplicated query sequences + metadata
+- `summary.json` — top-level metrics
 
 ## Completed: NTv3 TE Fossil Scoring & Analysis (2026-02-11)
 
