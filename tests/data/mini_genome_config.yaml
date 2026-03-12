@@ -8,6 +8,7 @@ source:
   genome_fasta: "mini_genome.fasta"
   annotation_gff: "mini_annotation.gff3"
   te_consensus: "mini_tes.fasta"
+  repeatmasker_out: "mini_repeatmasker.out"
 
 blast:
   word_size: 7
