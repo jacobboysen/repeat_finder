@@ -11,7 +11,8 @@ genome:
 source:
   adapter: "flybase"
   genome_fasta: "references/dmel_genome.fasta"
-  annotation_gff: "references/dmel-all-r6.66.gff"
+  annotation_gff: "references/dmel_annotation_coding.gff3"
+  annotation_gff_full: "references/dmel-all-r6.66.gff"  # unfiltered, 33M lines
   gene_id_prefix: "FBgn"
   transcript_id_prefix: "FBtr"
   te_instances: "references/dmel_te_flybase.fasta"

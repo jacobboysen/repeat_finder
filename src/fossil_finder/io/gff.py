@@ -24,13 +24,37 @@ def _parse_attributes(attr_string: str) -> dict[str, str]:
     return attrs
 
 
-def parse_gff3(path: str | Path) -> list[dict]:
+def _parse_feature(parts: list[str]) -> dict:
+    """Parse a split GFF3 line (9 tab-separated fields) into a feature dict."""
+    return {
+        "seqid": parts[0],
+        "source": parts[1],
+        "type": parts[2],
+        "start": int(parts[3]),
+        "end": int(parts[4]),
+        "score": None if parts[5] == "." else float(parts[5]),
+        "strand": parts[6],
+        "phase": None if parts[7] == "." else int(parts[7]),
+        "attributes": _parse_attributes(parts[8]),
+    }
+
+
+def parse_gff3(
+    path: str | Path,
+    feature_types: set[str] | None = None,
+) -> list[dict]:
     """Parse GFF3 file into list of feature dicts.
 
     Each feature dict has: seqid, source, type, start (int), end (int),
     score, strand, phase, attributes (dict).
 
     Coordinates are 1-based inclusive (GFF3 standard).
+
+    Args:
+        path: Path to GFF3 file.
+        feature_types: If provided, only load features whose type is in
+            this set. Dramatically reduces memory for large GFF3 files
+            (e.g., FlyBase dmel has 33M lines but only ~29k three_prime_UTR).
     """
     path = Path(path)
     if not path.exists():
@@ -48,18 +72,10 @@ def parse_gff3(path: str | Path) -> list[dict]:
             if len(parts) != 9:
                 continue
 
-            feature = {
-                "seqid": parts[0],
-                "source": parts[1],
-                "type": parts[2],
-                "start": int(parts[3]),
-                "end": int(parts[4]),
-                "score": None if parts[5] == "." else float(parts[5]),
-                "strand": parts[6],
-                "phase": None if parts[7] == "." else int(parts[7]),
-                "attributes": _parse_attributes(parts[8]),
-            }
-            features.append(feature)
+            if feature_types is not None and parts[2] not in feature_types:
+                continue
+
+            features.append(_parse_feature(parts))
 
     return features
 
@@ -78,17 +94,7 @@ def iter_gff3(path: str | Path):
             parts = line.split("\t")
             if len(parts) != 9:
                 continue
-            yield {
-                "seqid": parts[0],
-                "source": parts[1],
-                "type": parts[2],
-                "start": int(parts[3]),
-                "end": int(parts[4]),
-                "score": None if parts[5] == "." else float(parts[5]),
-                "strand": parts[6],
-                "phase": None if parts[7] == "." else int(parts[7]),
-                "attributes": _parse_attributes(parts[8]),
-            }
+            yield _parse_feature(parts)
 
 
 def get_features_by_type(features: list[dict], feature_type: str) -> list[dict]:

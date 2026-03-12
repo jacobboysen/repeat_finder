@@ -122,6 +122,21 @@ class TestLoadGenomeConfig:
             load_genome_config("/nonexistent/config.yaml")
 
 
+class TestAnnotationGffFull:
+    def test_annotation_gff_full_defaults_to_none(self):
+        config = GenomeConfig(**MINIMAL_CONFIG)
+        assert config.source.annotation_gff_full is None
+
+    def test_annotation_gff_full_accepted(self):
+        cfg = {**MINIMAL_CONFIG}
+        cfg["source"] = {
+            **cfg["source"],
+            "annotation_gff_full": "/path/to/full.gff",
+        }
+        config = GenomeConfig(**cfg)
+        assert config.source.annotation_gff_full == "/path/to/full.gff"
+
+
 class TestDmelConfig:
     def test_dmel_config_validates(self):
         dmel_path = (
@@ -135,6 +150,15 @@ class TestDmelConfig:
         assert "2L" in config.genome.chromosomes
         assert config.blast.word_size == 7
         assert config.blast.dust is False
+
+    def test_dmel_has_annotation_gff_full(self):
+        dmel_path = (
+            Path(__file__).parent.parent.parent
+            / "src" / "fossil_finder" / "config" / "genomes" / "dmel_r6.66.yaml"
+        )
+        config = load_genome_config(dmel_path)
+        assert config.source.annotation_gff_full is not None
+        assert "dmel-all-r6.66.gff" in config.source.annotation_gff_full
 
 
 class TestIntegration:

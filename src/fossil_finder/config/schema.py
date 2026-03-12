@@ -43,6 +43,7 @@ class SourceSpec(BaseModel):
     adapter: Literal["flybase", "ensembl", "ncbi", "custom"]
     genome_fasta: str
     annotation_gff: str
+    annotation_gff_full: str | None = None  # unfiltered GFF for large genomes
     gene_id_prefix: str | None = None
     transcript_id_prefix: str | None = None
     te_instances: str | None = None

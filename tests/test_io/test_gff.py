@@ -59,6 +59,45 @@ class TestGetFeaturesByType:
         assert enhancers == []
 
 
+class TestParseGff3FeatureTypes:
+    def test_filter_to_genes_only(self, mini_annotation_gff):
+        features = parse_gff3(mini_annotation_gff, feature_types={"gene"})
+        assert len(features) == 3
+        assert all(f["type"] == "gene" for f in features)
+
+    def test_filter_to_utrs(self, mini_annotation_gff):
+        features = parse_gff3(mini_annotation_gff, feature_types={"three_prime_UTR"})
+        assert len(features) == 3
+        assert all(f["type"] == "three_prime_UTR" for f in features)
+
+    def test_filter_to_multiple_types(self, mini_annotation_gff):
+        features = parse_gff3(mini_annotation_gff, feature_types={"gene", "mRNA"})
+        assert all(f["type"] in {"gene", "mRNA"} for f in features)
+        assert len(features) == 6  # 3 genes + 3 mRNAs
+
+    def test_no_filter_returns_all(self, mini_annotation_gff):
+        all_features = parse_gff3(mini_annotation_gff)
+        filtered = parse_gff3(mini_annotation_gff, feature_types=None)
+        assert len(all_features) == len(filtered)
+
+
+class TestIterGff3:
+    def test_yields_all_features(self, mini_annotation_gff):
+        features = list(iter_gff3(mini_annotation_gff))
+        expected = parse_gff3(mini_annotation_gff)
+        assert len(features) == len(expected)
+
+    def test_features_match_parse(self, mini_annotation_gff):
+        iter_features = list(iter_gff3(mini_annotation_gff))
+        parse_features = parse_gff3(mini_annotation_gff)
+        for a, b in zip(iter_features, parse_features):
+            assert a == b
+
+    def test_nonexistent_file_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            list(iter_gff3(tmp_path / "nope.gff3"))
+
+
 class TestGetChildren:
     def test_get_exons_of_mrna(self, mini_annotation_gff):
         features = parse_gff3(mini_annotation_gff)
