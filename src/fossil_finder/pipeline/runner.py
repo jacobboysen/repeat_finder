@@ -31,6 +31,7 @@ from fossil_finder.pipeline.steps import (
     step_extract_regions,
     step_family_analysis,
     step_load_and_filter,
+    step_motif_analysis,
     step_multiplicity_analysis,
     step_positional_analysis,
     step_quality_tiers,
@@ -53,6 +54,7 @@ class PipelineResult:
     positional: dict | None = None
     multiplicity: dict | None = None
     conservation: dict | None = None
+    motifs: dict | None = None
 
     def summary(self) -> dict:
         """Generate a summary dict of key metrics."""
@@ -92,6 +94,10 @@ class PipelineResult:
                 s["pident_phylop_rho"] = corr.get("rho", 0.0)
 
         s["n_gene_sets_tested"] = len(self.enrichment)
+
+        if self.motifs:
+            top = self.motifs.get("top_motifs", [])
+            s["n_top_motifs"] = len(top)
 
         return s
 
@@ -181,6 +187,7 @@ class PipelineRunner:
         query_regions: pd.DataFrame | None = None,
         phylop_bigwig: str | Path | None = None,
         bigwig_tool: str | Path | None = None,
+        shuffled_kmer_counts: list[dict[str, int]] | None = None,
     ) -> PipelineResult:
         """Run full analysis on BLAST results.
 
@@ -267,6 +274,15 @@ class PipelineRunner:
                 )
             except (FileNotFoundError, RuntimeError):
                 pass  # Conservation is optional — skip if tools missing
+
+        # Step 11: Motif analysis
+        if not df.empty:
+            result.motifs = step_motif_analysis(
+                df,
+                shuffled_counts=shuffled_kmer_counts,
+                query_to_gene=query_to_gene,
+                gene_sets=gene_sets,
+            )
 
         # ── Save all outputs ──────────────────────────────────
         self._save_results(result)
@@ -394,6 +410,43 @@ class PipelineRunner:
             if corr:
                 with open(out / "quality_paradox_stats.json", "w") as f:
                     json.dump(corr, f, indent=2, default=_json_safe)
+
+        # Motif analysis
+        if result.motifs:
+            enrichment = result.motifs.get("enrichment")
+            if (
+                enrichment is not None
+                and isinstance(enrichment, pd.DataFrame)
+                and not enrichment.empty
+            ):
+                enrichment.to_csv(
+                    out / "motif_enrichment.tsv", sep="\t", index=False,
+                )
+            pos_profile = result.motifs.get("positional_profile")
+            if (
+                pos_profile is not None
+                and isinstance(pos_profile, pd.DataFrame)
+                and not pos_profile.empty
+            ):
+                pos_profile.to_csv(
+                    out / "motif_positional_profile.tsv", sep="\t", index=False,
+                )
+            gs_assoc = result.motifs.get("gene_set_association")
+            if (
+                gs_assoc is not None
+                and isinstance(gs_assoc, pd.DataFrame)
+                and not gs_assoc.empty
+            ):
+                gs_assoc.to_csv(
+                    out / "motif_gene_set_association.tsv", sep="\t", index=False,
+                )
+            top_motifs = result.motifs.get("top_motifs", [])
+            kmer_counts = result.motifs.get("kmer_counts", {})
+            with open(out / "motif_summary.json", "w") as f:
+                json.dump(
+                    {"top_motifs": top_motifs, "n_unique_kmers": len(kmer_counts)},
+                    f, indent=2,
+                )
 
         # Summary (always last — references other files)
         summary = result.summary()

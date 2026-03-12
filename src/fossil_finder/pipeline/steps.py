@@ -43,6 +43,12 @@ from fossil_finder.analysis.strand import (
     compute_genome_strand_bias,
     compute_te_strand_bias,
 )
+from fossil_finder.analysis.motifs import (
+    compute_kmer_enrichment,
+    compute_motif_gene_set_enrichment,
+    compute_motif_positional_profile,
+    count_kmers_from_blast,
+)
 from fossil_finder.blast.dedup import HitDeduplicator
 from fossil_finder.blast.filter import apply_filters
 from fossil_finder.config.schema import GenomeConfig
@@ -391,5 +397,71 @@ def step_conservation_analysis(
 
     # Pident vs conservation correlation
     result["correlation"] = compute_pident_conservation_correlation(scored)
+
+    return result
+
+
+def step_motif_analysis(
+    df: pd.DataFrame,
+    shuffled_counts: list[dict[str, int]] | None = None,
+    query_to_gene: dict[str, str] | None = None,
+    gene_sets: dict[str, set[str]] | None = None,
+    k: int = 6,
+    top_n: int = 50,
+    min_count: int = 10,
+) -> dict:
+    """Run WS2 motif analysis: k-mer enrichment, positional profiles, gene-set association.
+
+    Args:
+        df: BLAST results with qseq column.
+        shuffled_counts: List of k-mer count dicts from shuffled replicates.
+            If None, only raw counts are returned (no enrichment).
+        query_to_gene: Optional query ID to gene ID mapping.
+        gene_sets: Optional named gene sets for association testing.
+        k: K-mer size (default 6).
+        top_n: Number of top enriched motifs for downstream analyses.
+        min_count: Minimum total count for enrichment testing.
+
+    Returns:
+        Dict with keys:
+        - 'kmer_counts': raw k-mer counts from real data
+        - 'enrichment': DataFrame of enrichment stats (if shuffled_counts provided)
+        - 'top_motifs': list of top enriched motif strings
+        - 'positional_profile': DataFrame of positional distributions for top motifs
+        - 'gene_set_association': DataFrame of motif x gene-set Fisher tests (if gene_sets provided)
+    """
+    result: dict = {}
+
+    # Count k-mers in real data
+    real_counts = count_kmers_from_blast(df, k=k)
+    result["kmer_counts"] = real_counts
+
+    # Enrichment vs shuffled controls
+    top_motifs = []
+    if shuffled_counts:
+        enrichment_df = compute_kmer_enrichment(
+            real_counts, shuffled_counts, min_count=min_count,
+        )
+        result["enrichment"] = enrichment_df
+        if not enrichment_df.empty:
+            top_motifs = enrichment_df.head(top_n)["motif"].tolist()
+    else:
+        # Without shuffled controls, rank by raw count
+        sorted_kmers = sorted(real_counts.items(), key=lambda x: -x[1])
+        top_motifs = [kmer for kmer, _ in sorted_kmers[:top_n]]
+
+    result["top_motifs"] = top_motifs
+
+    # Positional profile for top motifs
+    if top_motifs and not df.empty:
+        result["positional_profile"] = compute_motif_positional_profile(
+            df, top_motifs,
+        )
+
+    # Gene-set association
+    if top_motifs and query_to_gene and gene_sets and not df.empty:
+        result["gene_set_association"] = compute_motif_gene_set_enrichment(
+            df, top_motifs, query_to_gene, gene_sets,
+        )
 
     return result

@@ -231,3 +231,53 @@ class TestPipelineRunner:
         assert result.multiplicity is not None
         assert "multiplicity" in result.multiplicity
         assert "te_breadth" in result.multiplicity
+
+    def test_analyze_produces_motifs(
+        self, pipeline_config, mini_blast_results, tmp_path
+    ):
+        runner = PipelineRunner(
+            config=pipeline_config,
+            output_dir=tmp_path / "output",
+        )
+        result = runner.analyze(
+            blast_results=mini_blast_results,
+            query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
+                           "gene3_utr": "gene3"},
+        )
+        assert result.motifs is not None
+        assert "kmer_counts" in result.motifs
+        assert "top_motifs" in result.motifs
+
+    def test_motif_summary_in_summary(
+        self, pipeline_config, mini_blast_results, tmp_path
+    ):
+        runner = PipelineRunner(
+            config=pipeline_config,
+            output_dir=tmp_path / "output",
+        )
+        result = runner.analyze(
+            blast_results=mini_blast_results,
+            query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
+                           "gene3_utr": "gene3"},
+        )
+        summary = result.summary()
+        assert "n_top_motifs" in summary
+
+    def test_motif_files_saved(
+        self, pipeline_config, mini_blast_results, tmp_path
+    ):
+        runner = PipelineRunner(
+            config=pipeline_config,
+            output_dir=tmp_path / "output",
+        )
+        runner.analyze(
+            blast_results=mini_blast_results,
+            query_to_gene={"gene1_utr": "gene1", "gene2_utr": "gene2",
+                           "gene3_utr": "gene3"},
+        )
+        assert (tmp_path / "output" / "motif_summary.json").exists()
+        motif_data = json.loads(
+            (tmp_path / "output" / "motif_summary.json").read_text()
+        )
+        assert "top_motifs" in motif_data
+        assert "n_unique_kmers" in motif_data

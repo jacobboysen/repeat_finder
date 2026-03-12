@@ -14,6 +14,15 @@ from .enrichment import (
     test_gene_set_enrichment,
 )
 from .families import compute_class_distribution, compute_family_stats, compute_fold_enrichment
+from .motifs import (
+    compute_kmer_enrichment,
+    compute_motif_gene_set_enrichment,
+    compute_motif_positional_profile,
+    count_kmers_from_blast,
+    count_kmers_in_sequences,
+    extract_kmers,
+    find_motif_positions,
+)
 from .multiplicity import compute_hit_multiplicity, compute_query_hit_counts, compute_te_breadth
 from .positional import compute_end_bias, compute_positional_profile, compute_te_position, compute_utr_position
 from .quality_tiers import assign_quality_tiers, compute_edit_stats, compute_tier_edit_summary, summarize_tiers
@@ -36,6 +45,11 @@ __all__ = [
     "compute_end_bias",
     "compute_family_stats",
     "compute_fold_enrichment",
+    "compute_kmer_enrichment",
+    "compute_motif_gene_set_enrichment",
+    "compute_motif_positional_profile",
+    "count_kmers_from_blast",
+    "count_kmers_in_sequences",
     "compute_gene_strand_bias",
     "compute_genome_strand_bias",
     "compute_hit_multiplicity",
@@ -48,6 +62,8 @@ __all__ = [
     "compute_tier_edit_summary",
     "compute_utr_position",
     "correct_multiple_testing",
+    "extract_kmers",
+    "find_motif_positions",
     "find_overlaps",
     "fisher_exact_enrichment",
     "hits_to_genomic_bed",
