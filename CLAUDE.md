@@ -51,9 +51,14 @@ word_size=7, gapopen=2, gapextend=1, penalty=-1, reward=1, dust=no
 
 ### New package (recommended)
 ```bash
+uv pip install -e ".[dev]"
+```
+
+### With conda environment
+```bash
 conda env create -f environment.yml
 conda activate fossil-finder
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 ```
 
 ### Legacy conda env
@@ -62,9 +67,9 @@ pip install -e ".[dev]"
 conda activate bioinformatics-program
 ```
 
-### Using pip
+### Using uv (standalone)
 ```bash
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 ## Common Commands

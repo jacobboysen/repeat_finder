@@ -10,7 +10,7 @@ A single `Snakefile` with 5 rules forming a DAG. Config is loaded from the same 
 
 Multi-genome support is achieved via a `{genome}` wildcard — Snakemake expands the DAG per genome automatically. Single-genome invocations are the same code path (list of one).
 
-**Prerequisite:** The `fossil_finder` package must be installed (`pip install -e .`). Rules import from the package directly — no `sys.path` manipulation. This is already documented in the project's environment setup.
+**Prerequisite:** The `fossil_finder` package must be installed (`uv pip install -e .`). Rules import from the package directly — no `sys.path` manipulation. This is already documented in the project's environment setup.
 
 ## DAG
 
@@ -111,7 +111,7 @@ Runs the full analysis pipeline on BLAST results.
 
 The bridge script connects Snakemake's file-based world to `PipelineRunner.analyze()`.
 
-**Import strategy:** Imports `fossil_finder` as a normal installed package. No `sys.path` manipulation — `pip install -e .` is a prerequisite.
+**Import strategy:** Imports `fossil_finder` as a normal installed package. No `sys.path` manipulation — `uv pip install -e .` is a prerequisite.
 
 **Snakemake integration:** When called via `script:` directive, the `snakemake` object is injected into globals. The script reads:
 - `snakemake.input.*` for file paths (blast_results, regions_metadata, rm_out)
@@ -210,6 +210,6 @@ Tests skip gracefully when Snakemake or BLAST+ are not installed.
 ## Dependencies
 
 - Snakemake >=8.0 (already in `pyproject.toml` optional deps)
-- `fossil_finder` package installed (`pip install -e ".[workflow]"`)
+- `fossil_finder` package installed (`uv pip install -e ".[workflow]"`)
 - BLAST+ (for `makeblastdb` and `blastn`)
 - RepeatMasker (optional — only needed if no pre-existing `.out`)
