@@ -126,7 +126,8 @@ class GenomeConfig(BaseModel):
             import warnings
             warnings.warn(
                 "No TE source configured (te_instances or te_consensus). "
-                "TE fossil analysis requires at least one TE database.",
+                "Pipeline will fall back to RepeatMasker-derived TE instances "
+                "if RepeatMasker is available.",
                 UserWarning,
                 stacklevel=2,
             )

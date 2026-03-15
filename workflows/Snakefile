@@ -76,7 +76,8 @@ def get_te_fasta(wildcards):
     cfg = GENOMES[wildcards.genome]
     source = cfg.source.te_consensus or cfg.source.te_instances
     if not source:
-        raise ValueError(f"No TE source for genome {wildcards.genome}")
+        # Fallback: build TE instances from RepeatMasker output
+        return str(OUTPUT_DIR / wildcards.genome / "repeatmasker" / "te_instances.fasta")
     return resolve_path(source)
 
 
@@ -180,6 +181,21 @@ rule run_repeatmasker:
         # RM names output after input fasta — move to deterministic path
         if str(actual_out) != output.out:
             shutil.move(str(actual_out), output.out)
+
+
+rule build_te_fasta_from_repeatmasker:
+    input:
+        genome=get_genome_fasta,
+        rm_out=resolve_rm_input,
+    output:
+        fasta=str(OUTPUT_DIR / "{genome}" / "repeatmasker" / "te_instances.fasta"),
+    run:
+        from fossil_finder.repeatmasker.library import build_te_fasta_from_repeatmasker
+        build_te_fasta_from_repeatmasker(
+            genome_fasta=input.genome,
+            repeatmasker_out=input.rm_out,
+            output_fasta=output.fasta,
+        )
 
 
 rule analyze:
