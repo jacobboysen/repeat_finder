@@ -81,6 +81,22 @@ class TestFindOverlaps:
         overlaps = find_overlaps(rm_regions, query_regions)
         assert len(overlaps) == 0
 
+    def test_minus_strand_query_coordinates(self):
+        rm_regions = pd.DataFrame({
+            "chrom": ["chr1"], "start": [120], "end": [140],
+            "repeat_name": ["TE1"], "repeat_class": ["LTR"],
+            "strand": ["+"], "divergence": [10.0],
+        })
+        query_regions = pd.DataFrame({
+            "region_id": ["utr1"], "chrom": ["chr1"],
+            "start": [100], "end": [200], "strand": ["-"],
+        })
+        overlaps = find_overlaps(rm_regions, query_regions)
+        assert len(overlaps) == 1
+        # For minus strand, positions are reversed relative to query
+        assert overlaps.iloc[0]["rm_start_in_query"] == 61
+        assert overlaps.iloc[0]["rm_end_in_query"] == 81
+
 
 class TestClassifyHits:
     def test_known_vs_novel(self):

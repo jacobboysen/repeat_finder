@@ -95,8 +95,16 @@ def find_overlaps(
                 overlap_bp = overlap_end - overlap_start + 1
                 # Compute RM interval in query-relative 1-based coordinates
                 # to match BLAST qstart/qend (1-based inclusive)
-                rm_start_rel = max(1, rm["start"] - qr["start"] + 1)
-                rm_end_rel = min(qr["end"], rm["end"]) - qr["start"] + 1
+                query_len = qr["end"] - qr["start"] + 1
+                if "strand" in qr and qr["strand"] == "-":
+                    # For minus-strand queries, positions are reversed
+                    rm_start_rel = qr["end"] - overlap_end + 1
+                    rm_end_rel = qr["end"] - overlap_start + 1
+                else:
+                    rm_start_rel = overlap_start - qr["start"] + 1
+                    rm_end_rel = overlap_end - qr["start"] + 1
+                rm_start_rel = max(1, rm_start_rel)
+                rm_end_rel = min(query_len, rm_end_rel)
                 overlaps.append({
                     "region_id": qr["region_id"],
                     "chrom": rm["chrom"],
