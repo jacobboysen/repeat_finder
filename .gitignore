@@ -39,6 +39,9 @@ wheels/
 # Worktrees
 .worktrees/
 
+# Snakemake
+.snakemake/
+
 # Data and results (downloaded/generated)
 data/references/
 data/blastdb/
