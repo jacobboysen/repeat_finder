@@ -42,6 +42,7 @@ def _parse_feature(parts: list[str]) -> dict:
 def parse_gff3(
     path: str | Path,
     feature_types: set[str] | None = None,
+    infer_missing_utrs: bool = True,
 ) -> list[dict]:
     """Parse GFF3 file into list of feature dicts.
 
@@ -55,10 +56,21 @@ def parse_gff3(
         feature_types: If provided, only load features whose type is in
             this set. Dramatically reduces memory for large GFF3 files
             (e.g., FlyBase dmel has 33M lines but only ~29k three_prime_UTR).
+        infer_missing_utrs: If True and the requested feature_types include
+            UTR types but the GFF3 has none, infer them from mRNA/CDS
+            coordinates. Common for NCBI Gnomon annotations.
     """
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"GFF3 file not found: {path}")
+
+    utr_types = {"three_prime_UTR", "five_prime_UTR"}
+    wants_utrs = feature_types is not None and bool(feature_types & utr_types)
+
+    # If UTRs requested, also load mRNA + CDS for potential inference
+    load_types = feature_types
+    if wants_utrs and infer_missing_utrs and load_types is not None:
+        load_types = load_types | {"mRNA", "CDS"}
 
     features = []
 
@@ -72,10 +84,17 @@ def parse_gff3(
             if len(parts) != 9:
                 continue
 
-            if feature_types is not None and parts[2] not in feature_types:
+            if load_types is not None and parts[2] not in load_types:
                 continue
 
             features.append(_parse_feature(parts))
+
+    # Infer UTRs if none were found in the GFF3
+    if wants_utrs and infer_missing_utrs:
+        existing_utrs = [f for f in features if f["type"] in utr_types]
+        if not existing_utrs:
+            inferred = infer_utrs(features)
+            features.extend(inferred)
 
     return features
 
@@ -125,3 +144,89 @@ def get_gene_to_transcripts(features: list[dict]) -> dict[str, list[str]]:
                 genes[parent].append(f["attributes"]["ID"])
 
     return genes
+
+
+def infer_utrs(features: list[dict]) -> list[dict]:
+    """Infer 3'UTR and 5'UTR features from mRNA and CDS coordinates.
+
+    For GFF3 files that lack explicit UTR annotations (e.g., NCBI Gnomon),
+    UTRs are computed as the mRNA regions beyond CDS boundaries.
+
+    For plus-strand transcripts:
+      5'UTR = mRNA start to first CDS start - 1
+      3'UTR = last CDS end + 1 to mRNA end
+
+    For minus-strand transcripts:
+      5'UTR = last CDS end + 1 to mRNA end  (5' in biological sense)
+      3'UTR = mRNA start to first CDS start - 1  (3' in biological sense)
+
+    Returns synthetic feature dicts with type 'three_prime_UTR' or
+    'five_prime_UTR', using the same dict structure as parse_gff3.
+    """
+    # Index mRNAs and their CDS children
+    mrnas = {}
+    cds_by_mrna: dict[str, list[dict]] = {}
+
+    for f in features:
+        if f["type"] == "mRNA" and "ID" in f["attributes"]:
+            mrna_id = f["attributes"]["ID"]
+            mrnas[mrna_id] = f
+            cds_by_mrna[mrna_id] = []
+        elif f["type"] == "CDS" and "Parent" in f["attributes"]:
+            parent = f["attributes"]["Parent"]
+            if parent in cds_by_mrna:
+                cds_by_mrna[parent].append(f)
+
+    utrs = []
+    for mrna_id, mrna in mrnas.items():
+        cds_list = cds_by_mrna.get(mrna_id, [])
+        if not cds_list:
+            continue  # non-coding transcript
+
+        cds_starts = [c["start"] for c in cds_list]
+        cds_ends = [c["end"] for c in cds_list]
+        cds_min = min(cds_starts)
+        cds_max = max(cds_ends)
+
+        strand = mrna["strand"]
+        gene_parent = mrna["attributes"].get("Parent", "")
+
+        # Region before CDS (in genome coordinates)
+        if mrna["start"] < cds_min:
+            utr_type = "five_prime_UTR" if strand == "+" else "three_prime_UTR"
+            utrs.append({
+                "seqid": mrna["seqid"],
+                "source": mrna["source"],
+                "type": utr_type,
+                "start": mrna["start"],
+                "end": cds_min - 1,
+                "score": None,
+                "strand": strand,
+                "phase": None,
+                "attributes": {
+                    "ID": f"{mrna_id}:{utr_type}:pre_cds",
+                    "Parent": mrna_id,
+                    "gene_parent": gene_parent,
+                },
+            })
+
+        # Region after CDS (in genome coordinates)
+        if cds_max < mrna["end"]:
+            utr_type = "three_prime_UTR" if strand == "+" else "five_prime_UTR"
+            utrs.append({
+                "seqid": mrna["seqid"],
+                "source": mrna["source"],
+                "type": utr_type,
+                "start": cds_max + 1,
+                "end": mrna["end"],
+                "score": None,
+                "strand": strand,
+                "phase": None,
+                "attributes": {
+                    "ID": f"{mrna_id}:{utr_type}:post_cds",
+                    "Parent": mrna_id,
+                    "gene_parent": gene_parent,
+                },
+            })
+
+    return utrs

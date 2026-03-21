@@ -1,0 +1,32 @@
+# Drosophila pseudoobscura (UCI_Dpse_MV25 / NCBI RefSeq)
+# Comparative analysis partner for dmel TE fossil pipeline.
+# ~25 Mya divergence from D. melanogaster.
+# Gene annotation: NCBI Gnomon (Jan 2025), 14,343 protein-coding genes.
+# 3'UTRs inferred from mRNA minus CDS (no explicit UTR features in Gnomon GFF).
+
+genome:
+  species: "Drosophila pseudoobscura"
+  assembly: "UCI_Dpse_MV25"
+  chromosomes: ["NC_046679.1", "NC_046680.1", "NC_046681.1", "NC_046682.1", "NC_046683.1"]
+
+source:
+  adapter: "custom"  # NCBI adapter not yet implemented; custom handles GFF3+FASTA
+  genome_fasta: "references/dpse_genome.fasta"
+  annotation_gff: "references/dpse_annotation.gff3"
+  gene_id_prefix: "LOC"
+  # RM output generated using dmel TE consensus as custom library
+  repeatmasker_out: "references/dpse_genome.fa.out"
+
+repeatmasker:
+  species: "Drosophila pseudoobscura"
+  lib: "references/dmel_te_consensus.fasta"  # use dmel TE library for symmetric comparison
+  engine: "rmblast"
+  parallel: 8
+  sensitivity: "rush"  # fastest for initial comparison
+  no_is: true
+
+blast:
+  evalue: 0.01
+  max_target_seqs: 10000
+
+gene_sets: {}

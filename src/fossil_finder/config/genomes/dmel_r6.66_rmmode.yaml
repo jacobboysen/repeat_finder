@@ -1,0 +1,26 @@
+# Drosophila melanogaster (dm6 / FlyBase r6.66) — RepeatMasker mode
+# Uses RM-derived TE library instead of curated FlyBase consensus,
+# for symmetric comparison with D. pseudoobscura.
+
+genome:
+  species: "Drosophila melanogaster"
+  assembly: "dm6"
+  release: "r6.66"
+  chromosomes: ["2L", "2R", "3L", "3R", "X", "4"]
+  ucsc_prefix: "chr"
+
+source:
+  adapter: "flybase"
+  genome_fasta: "references/dmel_genome.fasta"
+  annotation_gff: "references/dmel_annotation_coding.gff3"
+  gene_id_prefix: "FBgn"
+  transcript_id_prefix: "FBtr"
+  gene_symbol_map: "references/fbgn_to_symbol.tsv"
+  # No te_consensus or te_instances — forces RepeatMasker fallback
+  repeatmasker_out: "references/dm6.fa.out"
+
+blast:
+  evalue: 0.01
+  max_target_seqs: 10000
+
+gene_sets: {}

@@ -70,7 +70,8 @@ def find_overlaps(
 ) -> pd.DataFrame:
     """Find overlaps between RepeatMasker regions and query regions.
 
-    Uses simple interval intersection. Both inputs use 1-based inclusive
+    Uses chromosome-grouped merge + vectorized interval intersection
+    instead of O(N*M) nested loop. Both inputs use 1-based inclusive
     coordinates (GFF3/RM convention).
 
     Args:
@@ -81,44 +82,67 @@ def find_overlaps(
     Returns:
         DataFrame of overlaps with region_id, overlap_bp, and RM metadata.
     """
-    overlaps = []
+    if rm_regions.empty or query_regions.empty:
+        return pd.DataFrame()
 
-    for _, rm in rm_regions.iterrows():
-        for _, qr in query_regions.iterrows():
-            if rm["chrom"] != qr["chrom"]:
-                continue
+    # Inner join on chromosome to reduce comparison space
+    merged = rm_regions.merge(
+        query_regions,
+        on="chrom",
+        suffixes=("_rm", "_qr"),
+    )
 
-            overlap_start = max(rm["start"], qr["start"])
-            overlap_end = min(rm["end"], qr["end"])
+    if merged.empty:
+        return pd.DataFrame()
 
-            if overlap_start <= overlap_end:
-                overlap_bp = overlap_end - overlap_start + 1
-                # Compute RM interval in query-relative 1-based coordinates
-                # to match BLAST qstart/qend (1-based inclusive)
-                query_len = qr["end"] - qr["start"] + 1
-                if "strand" in qr and qr["strand"] == "-":
-                    # For minus-strand queries, positions are reversed
-                    rm_start_rel = qr["end"] - overlap_end + 1
-                    rm_end_rel = qr["end"] - overlap_start + 1
-                else:
-                    rm_start_rel = overlap_start - qr["start"] + 1
-                    rm_end_rel = overlap_end - qr["start"] + 1
-                rm_start_rel = max(1, rm_start_rel)
-                rm_end_rel = min(query_len, rm_end_rel)
-                overlaps.append({
-                    "region_id": qr["region_id"],
-                    "chrom": rm["chrom"],
-                    "overlap_start": overlap_start,
-                    "overlap_end": overlap_end,
-                    "overlap_bp": overlap_bp,
-                    "repeat_name": rm["repeat_name"],
-                    "repeat_class": rm["repeat_class"],
-                    "divergence": rm.get("divergence", None),
-                    "rm_start_in_query": rm_start_rel,
-                    "rm_end_in_query": rm_end_rel,
-                })
+    # Vectorized overlap detection
+    overlap_start = merged[["start_rm", "start_qr"]].max(axis=1)
+    overlap_end = merged[["end_rm", "end_qr"]].min(axis=1)
+    has_overlap = overlap_start <= overlap_end
 
-    return pd.DataFrame(overlaps)
+    merged = merged[has_overlap].copy()
+    if merged.empty:
+        return pd.DataFrame()
+
+    overlap_start = merged[["start_rm", "start_qr"]].max(axis=1)
+    overlap_end = merged[["end_rm", "end_qr"]].min(axis=1)
+
+    merged["overlap_start"] = overlap_start
+    merged["overlap_end"] = overlap_end
+    merged["overlap_bp"] = overlap_end - overlap_start + 1
+
+    # Compute RM interval in query-relative 1-based coordinates
+    query_len = merged["end_qr"] - merged["start_qr"] + 1
+    is_minus = merged.get("strand_qr", pd.Series("+" * len(merged))) == "-"
+
+    # Plus strand: relative = overlap - query_start + 1
+    rm_start_rel = overlap_start - merged["start_qr"] + 1
+    rm_end_rel = overlap_end - merged["start_qr"] + 1
+
+    # Minus strand: positions are reversed
+    if is_minus.any():
+        rm_start_rel_minus = merged["end_qr"] - overlap_end + 1
+        rm_end_rel_minus = merged["end_qr"] - overlap_start + 1
+        rm_start_rel = rm_start_rel.where(~is_minus, rm_start_rel_minus)
+        rm_end_rel = rm_end_rel.where(~is_minus, rm_end_rel_minus)
+
+    rm_start_rel = rm_start_rel.clip(lower=1)
+    rm_end_rel = rm_end_rel.clip(upper=query_len)
+
+    result = pd.DataFrame({
+        "region_id": merged["region_id"].values,
+        "chrom": merged["chrom"].values,
+        "overlap_start": merged["overlap_start"].values,
+        "overlap_end": merged["overlap_end"].values,
+        "overlap_bp": merged["overlap_bp"].values,
+        "repeat_name": merged["repeat_name"].values,
+        "repeat_class": merged["repeat_class"].values,
+        "divergence": merged["divergence"].values if "divergence" in merged.columns else None,
+        "rm_start_in_query": rm_start_rel.values,
+        "rm_end_in_query": rm_end_rel.values,
+    })
+
+    return result
 
 
 def classify_hits(
@@ -130,6 +154,8 @@ def classify_hits(
     A hit is "known" if its query range [qstart, qend] overlaps with
     any RepeatMasker region mapped to the same query.
 
+    Uses vectorized merge + interval comparison instead of row-by-row iteration.
+
     Args:
         blast_hits: BLAST results with qseqid, qstart, qend columns.
         rm_overlaps: RM overlap data with region_id, rm_start_in_query,
@@ -138,40 +164,51 @@ def classify_hits(
     Returns:
         Tuple of (known_hits, novel_hits) DataFrames.
     """
-    # Build lookup: region_id -> list of RM intervals in query space
-    rm_by_region: dict[str, list[dict]] = {}
-    for _, row in rm_overlaps.iterrows():
-        rid = row["region_id"]
-        if rid not in rm_by_region:
-            rm_by_region[rid] = []
-        rm_by_region[rid].append({
-            "start": row["rm_start_in_query"],
-            "end": row["rm_end_in_query"],
-            "repeat_name": row["repeat_name"],
-            "repeat_class": row["repeat_class"],
-        })
+    if blast_hits.empty:
+        return pd.DataFrame(), pd.DataFrame()
 
-    known_rows = []
-    novel_rows = []
+    if rm_overlaps.empty:
+        return pd.DataFrame(), blast_hits.copy()
 
-    for _, hit in blast_hits.iterrows():
-        qid = hit["qseqid"]
-        regions = rm_by_region.get(qid, [])
+    # Add a unique hit index for tracking
+    hits = blast_hits.copy()
+    hits["_hit_idx"] = range(len(hits))
 
-        is_known = False
-        for rm in regions:
-            if hit["qstart"] <= rm["end"] and hit["qend"] >= rm["start"]:
-                known_row = hit.to_dict()
-                known_row["rm_repeat_name"] = rm["repeat_name"]
-                known_row["rm_repeat_class"] = rm["repeat_class"]
-                known_rows.append(known_row)
-                is_known = True
-                break
+    # Merge BLAST hits with RM overlaps on query ID
+    rm_sub = rm_overlaps[["region_id", "rm_start_in_query", "rm_end_in_query",
+                           "repeat_name", "repeat_class"]].copy()
 
-        if not is_known:
-            novel_rows.append(hit.to_dict())
+    merged = hits.merge(
+        rm_sub,
+        left_on="qseqid",
+        right_on="region_id",
+        how="inner",
+    )
 
-    known = pd.DataFrame(known_rows) if known_rows else pd.DataFrame()
-    novel = pd.DataFrame(novel_rows) if novel_rows else pd.DataFrame()
+    if merged.empty:
+        return pd.DataFrame(), blast_hits.copy()
+
+    # Vectorized overlap check: hit [qstart, qend] overlaps RM [rm_start, rm_end]
+    has_overlap = (
+        (merged["qstart"] <= merged["rm_end_in_query"]) &
+        (merged["qend"] >= merged["rm_start_in_query"])
+    )
+
+    # Get unique hit indices that are known (take first matching RM annotation)
+    known_merged = merged[has_overlap].drop_duplicates(subset=["_hit_idx"], keep="first")
+    known_idx = set(known_merged["_hit_idx"].values)
+
+    # Build known DataFrame with RM metadata
+    known = hits[hits["_hit_idx"].isin(known_idx)].copy()
+    # Attach RM metadata via the merge result
+    rm_meta = known_merged.set_index("_hit_idx")[["repeat_name", "repeat_class"]]
+    rm_meta.columns = ["rm_repeat_name", "rm_repeat_class"]
+    known = known.join(rm_meta, on="_hit_idx")
+
+    novel = hits[~hits["_hit_idx"].isin(known_idx)].copy()
+
+    # Clean up temp column
+    known = known.drop(columns=["_hit_idx"])
+    novel = novel.drop(columns=["_hit_idx"])
 
     return known, novel

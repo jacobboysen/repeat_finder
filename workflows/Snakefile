@@ -93,11 +93,29 @@ def resolve_rm_input(wildcards):
     return str(OUTPUT_DIR / wildcards.genome / "repeatmasker" / "rm_output.out")
 
 
+# ── Cross-BLAST pairs ────────────────────────────────────────────────────────
+# When 2+ genomes are loaded, generate all cross-BLAST combinations.
+# E.g. genomes = {dm6, UCI_Dpse_MV25} produces:
+#   dm6 UTRs vs UCI_Dpse_MV25 TE db,  UCI_Dpse_MV25 UTRs vs dm6 TE db
+
+CROSS_PAIRS = [
+    (q, s) for q in GENOMES for s in GENOMES if q != s
+]
+
+
 # ── Targets ──────────────────────────────────────────────────────────────────
 
 rule all:
     input:
+        # Self-BLAST analyses
         expand(str(OUTPUT_DIR / "{genome}" / "summary.json"), genome=GENOMES.keys()),
+        # Cross-BLAST results (only when 2+ genomes)
+        expand(
+            str(OUTPUT_DIR / "{query}_vs_{subject}_te" / "blast_results.tsv"),
+            zip,
+            query=[p[0] for p in CROSS_PAIRS],
+            subject=[p[1] for p in CROSS_PAIRS],
+        ) if len(GENOMES) > 1 else [],
 
 
 # ── Rules ────────────────────────────────────────────────────────────────────
@@ -138,8 +156,7 @@ rule make_blast_db:
         makeblastdb \
             -in {input.fasta} \
             -dbtype nucl \
-            -out {params.db_prefix} \
-            -parse_seqids
+            -out {params.db_prefix}
         """
 
 
@@ -209,3 +226,27 @@ rule analyze:
         genome_config=lambda wc: GENOME_CONFIG_PATHS[wc.genome],
     script:
         "scripts/run_analysis.py"
+
+
+# ── Cross-BLAST ─────────────────────────────────────────────────────────────
+# BLAST one genome's UTRs against another genome's TE database.
+# Uses query genome's BLAST parameters.
+
+rule cross_blast:
+    input:
+        query=lambda wc: str(OUTPUT_DIR / wc.query / "regions.fa"),
+        db_nhr=lambda wc: str(OUTPUT_DIR / wc.subject / "blastdb" / "te_db.nhr"),
+    output:
+        tsv=str(OUTPUT_DIR / "{query}_vs_{subject}_te" / "blast_results.tsv"),
+    params:
+        db_prefix=lambda wc: str(OUTPUT_DIR / wc.subject / "blastdb" / "te_db"),
+    threads: 4
+    run:
+        from fossil_finder.blast.runner import BlastRunner
+        cfg = GENOMES[wildcards.query]
+        runner = BlastRunner(cfg.blast)
+        runner.run(
+            query=input.query,
+            database=params.db_prefix,
+            output=output.tsv,
+        )
